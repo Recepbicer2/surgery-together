@@ -22,21 +22,23 @@ public class PlayerController : NetworkBehaviour
 
         controller = GetComponent<CharacterController>();
 
-        // EĞER BU OBJENIN SAHİBİ BİZ DEĞİLSEK (Diğer oyuncuysa):
         if (!IsOwner)
         {
-            // Kamera bileşenini ve dinleyicisini kapatıyoruz ki kendi ekranımız bozulmasın
             if (playerCamera != null)
             {
                 playerCamera.enabled = false;
                 AudioListener listener = playerCamera.GetComponent<AudioListener>();
                 if (listener != null) listener.enabled = false;
             }
+
+            if (controller != null) controller.enabled = false;
             return;
         }
 
-        // Sadece kendi karakterimiz için fareyi ekrana kitle
-        Cursor.lockState = CursorLockMode.Locked;
+        if (controller != null) controller.enabled = true;
+
+        // DIKKAT: Cursor.lockState kısmını buradan kaldırdık!
+        // İmleç kilitlenmesini bağlantı başarılı olunca RelayTestUI veya oyun akışı yönetecek.
     }
 
     void Update()

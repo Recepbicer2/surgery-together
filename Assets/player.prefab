@@ -521,8 +521,8 @@ GameObject:
   - component: {fileID: 3221589687517343174}
   - component: {fileID: 6939168977260850556}
   - component: {fileID: 7039091169212651441}
-  - component: {fileID: 3297404806877742138}
   - component: {fileID: 877253522132521093}
+  - component: {fileID: 3297404806877742138}
   - component: {fileID: 878291021987194991}
   m_Layer: 0
   m_Name: player
@@ -652,21 +652,6 @@ CharacterController:
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3297404806877742138
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8306524621911595837}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0376d8ed6129f43488c4293ebc94b043, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::PlayerController
-  moveSpeed: 4
-  mouseSensitivity: 2
-  cameraTransform: {fileID: 9209662592383820179}
 --- !u!114 &877253522132521093
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -679,7 +664,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1647463650
+  GlobalObjectIdHash: 1376828031
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -693,6 +678,23 @@ MonoBehaviour:
   AutoObjectParentSync: 1
   SyncOwnerTransformWhenParented: 1
   AllowOwnerToParent: 0
+--- !u!114 &3297404806877742138
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8306524621911595837}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0376d8ed6129f43488c4293ebc94b043, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerController
+  ShowTopMostFoldoutHeaderGroup: 1
+  moveSpeed: 4
+  mouseSensitivity: 2
+  cameraTransform: {fileID: 9209662592383820179}
+  playerCamera: {fileID: 0}
 --- !u!114 &878291021987194991
 MonoBehaviour:
   m_ObjectHideFlags: 0
