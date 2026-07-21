@@ -5,37 +5,37 @@ public class RelayTestUI : MonoBehaviour
     private string inputJoinCode = "";
     private string currentJoinCode = "";
     private bool isConnected = false;
+    private bool isConnecting = false; // İşlem sürerken çift tıklamayı önler
 
-    private async void OnGUI()
+    private void OnGUI()
     {
         GUILayout.BeginArea(new Rect(20, 20, 350, 300));
 
         if (!isConnected)
         {
-            // ODA OLUŞTURMA (HOST)
-            if (GUILayout.Button("Host Ol (Oda Kur)", GUILayout.Height(40)))
+            if (isConnecting)
             {
-                currentJoinCode = await RelayManager.Instance.CreateRelay(4);
-                if (!string.IsNullOrEmpty(currentJoinCode))
-                {
-                    isConnected = true;
-                }
+                GUILayout.Label("Bağlanıyor, lütfen bekleyin...");
             }
-
-            GUILayout.Space(20);
-
-            // ODAYA KATILMA (CLIENT)
-            GUILayout.Label("Oda Kodu Girin:");
-            inputJoinCode = GUILayout.TextField(inputJoinCode, GUILayout.Height(30));
-
-            if (GUILayout.Button("Odaya Katıl (Client)", GUILayout.Height(40)))
+            else
             {
-                if (!string.IsNullOrEmpty(inputJoinCode))
+                // ODA OLUŞTURMA (HOST)
+                if (GUILayout.Button("Host Ol (Oda Kur)", GUILayout.Height(40)))
                 {
-                    bool success = await RelayManager.Instance.JoinRelay(inputJoinCode.Trim());
-                    if (success)
+                    StartHostProcess();
+                }
+
+                GUILayout.Space(20);
+
+                // ODAYA KATILMA (CLIENT)
+                GUILayout.Label("Oda Kodu Girin:");
+                inputJoinCode = GUILayout.TextField(inputJoinCode, GUILayout.Height(30));
+
+                if (GUILayout.Button("Odaya Katıl (Client)", GUILayout.Height(40)))
+                {
+                    if (!string.IsNullOrEmpty(inputJoinCode))
                     {
-                        isConnected = true;
+                        StartJoinProcess(inputJoinCode.Trim().ToUpper());
                     }
                 }
             }
@@ -50,5 +50,29 @@ public class RelayTestUI : MonoBehaviour
         }
 
         GUILayout.EndArea();
+    }
+
+    private async void StartHostProcess()
+    {
+        isConnecting = true;
+        currentJoinCode = await RelayManager.Instance.CreateRelay(4);
+
+        if (!string.IsNullOrEmpty(currentJoinCode))
+        {
+            isConnected = true;
+        }
+        isConnecting = false;
+    }
+
+    private async void StartJoinProcess(string code)
+    {
+        isConnecting = true;
+        bool success = await RelayManager.Instance.JoinRelay(code);
+
+        if (success)
+        {
+            isConnected = true;
+        }
+        isConnecting = false;
     }
 }
