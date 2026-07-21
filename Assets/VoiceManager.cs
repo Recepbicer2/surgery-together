@@ -10,8 +10,6 @@ public class VoiceManager : NetworkBehaviour
     public string channelName = "Game3DVoiceChannel";
     private bool isInChannel = false;
 
-    // Awake ve Instance kısımlarını TAMAMEN SİLDİK!
-
     public override async void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
@@ -22,8 +20,6 @@ public class VoiceManager : NetworkBehaviour
             await InitializeAndJoinVivoxAsync();
         }
     }
-
-    // ... Kodun geri kalanı tamamen aynı kalacak ...
 
     private async Task InitializeAndJoinVivoxAsync()
     {
@@ -43,7 +39,6 @@ public class VoiceManager : NetworkBehaviour
                 // 3D Ses Konfigürasyonu (Duyulma Mesafesi vs.)
                 Channel3DProperties positionalOptions = new Channel3DProperties(15, 2, 1.0f, AudioFadeModel.InverseByDistance);
 
-                // En sade haliyle 3D kanala katılım işlemi
                 await VivoxService.Instance.JoinPositionalChannelAsync(
                     channelName,
                     ChatCapability.TextAndAudio,
@@ -54,12 +49,34 @@ public class VoiceManager : NetworkBehaviour
                 Debug.Log("Vivox 3D Sesli Sohbet Başarıyla Bağlandı!");
             }
 
+            // Oyuna girince mikrofon kapalı başlasın
             MuteMicrophone();
         }
         catch (Exception ex)
         {
-            // Olası bir hatada çökmesin, sadece konsola uyarı yazsın
             Debug.LogWarning($"Vivox Bağlantı Uyarısı (Oyun Akışını Etkilemez): {ex.Message}");
+        }
+    }
+
+    void Update()
+    {
+        // Sadece kendi karakterimiz için pozisyon bildirip tuş okuyacağız
+        if (!IsOwner) return;
+
+        // 1. 3D SES POZİSYON GÜNCELLEMESİ (Vivox'un bizim nerede olduğumuzu bilmesi için şart)
+        if (isInChannel)
+        {
+            VivoxService.Instance.Set3DPosition(transform.gameObject, channelName);
+        }
+
+        // 2. BAS-KONUŞ (Push to Talk) SİSTEMİ - V Tuşu
+        if (Input.GetKeyDown(KeyCode.V))
+        {
+            UnmuteMicrophone();
+        }
+        else if (Input.GetKeyUp(KeyCode.V))
+        {
+            MuteMicrophone();
         }
     }
 
@@ -68,11 +85,23 @@ public class VoiceManager : NetworkBehaviour
         try
         {
             VivoxService.Instance.MuteInputDevice();
-            Debug.Log("Mikrofon Kapatıldı");
+            // Konsol spama girmesin diye Debug.Log'u kaldırdım
         }
         catch (Exception e)
         {
             Debug.LogWarning("Mikrofon kapatılırken hata oluştu: " + e.Message);
+        }
+    }
+
+    public void UnmuteMicrophone()
+    {
+        try
+        {
+            VivoxService.Instance.UnmuteInputDevice();
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("Mikrofon açılırken hata oluştu: " + e.Message);
         }
     }
 
@@ -106,7 +135,6 @@ public class VoiceManager : NetworkBehaviour
         }
     }
 
-    // Editörde Play modundan çıkıldığında oturumu kesin kapatması için
     private async void OnApplicationQuit()
     {
         try
