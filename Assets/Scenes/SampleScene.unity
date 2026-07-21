@@ -3219,7 +3219,7 @@ MonoBehaviour:
   NetworkConfig:
     ProtocolVersion: 0
     NetworkTransport: {fileID: 1371179621}
-    PlayerPrefab: {fileID: 546609262763033600, guid: 5a6455095c8ce0541a5d4a302cd162f1, type: 3}
+    PlayerPrefab: {fileID: 7152999069737311008, guid: 69eb93c3a620ae0428cc99bc88db4210, type: 3}
     Prefabs:
       NetworkPrefabsLists:
       - {fileID: 11400000, guid: 45a0dcb12f46f6c4491bf7380133d01a, type: 2}
@@ -4033,7 +4033,7 @@ AudioListener:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1905819457}
-  m_Enabled: 1
+  m_Enabled: 0
 --- !u!20 &1905819460
 Camera:
   m_ObjectHideFlags: 0

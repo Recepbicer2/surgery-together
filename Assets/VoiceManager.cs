@@ -1,28 +1,20 @@
-using Unity.Netcode;
-using UnityEngine;
-using Unity.Services.Core;
-using Unity.Services.Authentication;
-using Unity.Services.Vivox;
+using System;
 using System.Threading.Tasks;
+using Unity.Netcode;
+using Unity.Services.Vivox;
+using UnityEngine;
 
 public class VoiceManager : NetworkBehaviour
 {
-    public static VoiceManager Instance;
+    public static VoiceManager Instance { get; private set; }
 
     [Header("Vivox Ayarları")]
     public string channelName = "Game3DVoiceChannel";
-    public KeyCode pushToTalkKey = KeyCode.V;
-
-    [Header("Proximity (3D Ses) Ayarları")]
-    public int minDistance = 2;
-    public int maxDistance = 20;
-    public float distanceFactor = 1f;
-
-    public bool IsTalking { get; private set; }
-    private bool isInChannel = false; // Kanala başarıyla girilip girilmediğini takip eden bayrak
+    private bool isInChannel = false;
 
     private void Awake()
     {
+        // Singleton yapısı
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
@@ -31,105 +23,107 @@ public class VoiceManager : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
-        // Sadece kendi karakterimiz için Vivox'u başlatıyoruz
+        // Sadece kendi karakterimiz doğduğunda Vivox'a bağlanıyoruz
         if (IsOwner)
         {
-            await InitializeVivoxAsync();
+            await InitializeAndJoinVivoxAsync();
         }
     }
 
-    private async Task InitializeVivoxAsync()
+    private async Task InitializeAndJoinVivoxAsync()
     {
         try
         {
-            if (UnityServices.State == ServicesInitializationState.Uninitialized)
-            {
-                await UnityServices.InitializeAsync();
-            }
-
-            if (!AuthenticationService.Instance.IsSignedIn)
-            {
-                await AuthenticationService.Instance.SignInAnonymouslyAsync();
-            }
-
+            // 1. Giriş kontrolü ve login
             if (!VivoxService.Instance.IsLoggedIn)
             {
                 await VivoxService.Instance.InitializeAsync();
                 await VivoxService.Instance.LoginAsync();
+                Debug.Log("Vivox Giriş Yapıldı.");
             }
 
-            Channel3DProperties positionalOptions = new Channel3DProperties(maxDistance, minDistance, distanceFactor, AudioFadeModel.LinearByDistance);
+            // 2. Kanala katılma kontrolü
+            if (!isInChannel)
+            {
+                // 3D Ses Konfigürasyonu (Duyulma Mesafesi vs.)
+                Channel3DProperties positionalOptions = new Channel3DProperties(15, 2, 1.0f, AudioFadeModel.InverseByDistance);
 
-            // Kanala katılmayı bekle
-            await VivoxService.Instance.JoinPositionalChannelAsync(channelName, ChatCapability.AudioOnly, positionalOptions);
+                // En sade haliyle 3D kanala katılım işlemi
+                await VivoxService.Instance.JoinPositionalChannelAsync(
+                    channelName,
+                    ChatCapability.TextAndAudio,
+                    positionalOptions
+                );
 
-            // Başarılı şekilde katıldık!
-            isInChannel = true;
+                isInChannel = true;
+                Debug.Log("Vivox 3D Sesli Sohbet Başarıyla Bağlandı!");
+            }
 
-            // Başlangıçta mikrofonu sessize alıyoruz (Push-to-Talk için)
-            MuteMicrophone();
-
-            Debug.Log("Vivox 3D Sesli Sohbet Başarıyla Bağlandı!");
-        }
-        catch (System.Exception e)
-        {
-            isInChannel = false;
-            Debug.LogError("Vivox Bağlantı Hatası: " + e.Message);
-        }
-    }
-
-    private void Update()
-    {
-        if (!IsOwner) return;
-
-        // KRİTİK DÜZELTME: Sadece giriş yapılmışsa VE kanala tamamen katılmışsak pozisyon güncelle!
-        if (VivoxService.Instance != null && VivoxService.Instance.IsLoggedIn && isInChannel)
-        {
-            VivoxService.Instance.Set3DPosition(gameObject, channelName);
-        }
-
-        // Push To Talk Kontrolleri
-        if (Input.GetKeyDown(pushToTalkKey))
-        {
-            UnmuteMicrophone();
-        }
-        else if (Input.GetKeyUp(pushToTalkKey))
-        {
             MuteMicrophone();
         }
+        catch (Exception ex)
+        {
+            // Olası bir hatada çökmesin, sadece konsola uyarı yazsın
+            Debug.LogWarning($"Vivox Bağlantı Uyarısı (Oyun Akışını Etkilemez): {ex.Message}");
+        }
     }
 
-    private void UnmuteMicrophone()
+    public void MuteMicrophone()
     {
-        if (!isInChannel) return;
-
-        IsTalking = true;
-        VivoxService.Instance.UnmuteInputDevice();
-        Debug.Log("Mikrofon Açıldı");
+        try
+        {
+            VivoxService.Instance.MuteInputDevice();
+            Debug.Log("Mikrofon Kapatıldı");
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning("Mikrofon kapatılırken hata oluştu: " + e.Message);
+        }
     }
 
-    private void MuteMicrophone()
+    public override void OnNetworkDespawn()
     {
-        if (!isInChannel) return;
-
-        IsTalking = false;
-        VivoxService.Instance.MuteInputDevice();
-        Debug.Log("Mikrofon Kapatıldı");
+        base.OnNetworkDespawn();
+        CleanupVivox();
     }
 
-    public override async void OnDestroy()
+    private async void CleanupVivox()
     {
-        base.OnDestroy();
-
         if (IsOwner && VivoxService.Instance != null)
         {
-            isInChannel = false;
-
-            if (VivoxService.Instance.IsLoggedIn)
+            try
             {
-                await VivoxService.Instance.LeaveAllChannelsAsync();
+                if (isInChannel)
+                {
+                    await VivoxService.Instance.LeaveChannelAsync(channelName);
+                    isInChannel = false;
+                }
+
+                if (VivoxService.Instance.IsLoggedIn)
+                {
+                    await VivoxService.Instance.LogoutAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("Vivox temizlenirken uyarı: " + ex.Message);
+            }
+        }
+    }
+
+    // Editörde Play modundan çıkıldığında oturumu kesin kapatması için
+    private async void OnApplicationQuit()
+    {
+        try
+        {
+            if (VivoxService.Instance != null && VivoxService.Instance.IsLoggedIn)
+            {
                 await VivoxService.Instance.LogoutAsync();
             }
+        }
+        catch (Exception ex)
+        {
+            Debug.LogWarning("Uygulama kapanırken Vivox çıkış hatası: " + ex.Message);
         }
     }
 }

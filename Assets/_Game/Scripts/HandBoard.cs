@@ -53,10 +53,11 @@ public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
 
     void Start()
     {
-        // 1. Eğer yaziInput Inspector'dan atanmadıysa sahneden otomatik bul
+        // 1. Eğer yaziInput Inspector'dan atanmadıysa sahneden otomatik bul (Kapalı olsa bile bulur!)
         if (yaziInput == null)
         {
-            yaziInput = FindFirstObjectByType<TMP_InputField>();
+            // FindObjectsInactive.Include sayesinde panel gizliyse bile Unity onu yakalar
+            yaziInput = FindFirstObjectByType<TMP_InputField>(FindObjectsInactive.Include);
         }
 
         // 2. Eğer inputPaneli atanmadıysa yaziInput'un bağlı olduğu paneli bul
@@ -65,7 +66,7 @@ public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
             inputPaneli = yaziInput.transform.parent.gameObject;
         }
 
-        // Event listener bağlama (Sadece kendi karakterimiz kontrol etsin)
+        // Event listener bağlama
         if (yaziInput != null)
         {
             yaziInput.onValueChanged.AddListener(TahtaYazisiniAnlikGuncelle);
