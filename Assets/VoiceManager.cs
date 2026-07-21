@@ -6,18 +6,11 @@ using UnityEngine;
 
 public class VoiceManager : NetworkBehaviour
 {
-    public static VoiceManager Instance { get; private set; }
-
     [Header("Vivox Ayarları")]
     public string channelName = "Game3DVoiceChannel";
     private bool isInChannel = false;
 
-    private void Awake()
-    {
-        // Singleton yapısı
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
-    }
+    // Awake ve Instance kısımlarını TAMAMEN SİLDİK!
 
     public override async void OnNetworkSpawn()
     {
@@ -29,6 +22,8 @@ public class VoiceManager : NetworkBehaviour
             await InitializeAndJoinVivoxAsync();
         }
     }
+
+    // ... Kodun geri kalanı tamamen aynı kalacak ...
 
     private async Task InitializeAndJoinVivoxAsync()
     {
