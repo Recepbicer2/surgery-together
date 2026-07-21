@@ -18,16 +18,14 @@ public class PlayerController : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
-        // Inspector'da atanmadıysa alt objelerdeki kamerayı otomatik bulur
         if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
         if (cameraTransform == null && playerCamera != null) cameraTransform = playerCamera.transform;
 
         controller = GetComponent<CharacterController>();
 
-        // EĞER BU KARAKTER BİZE AİT DEĞİLSE (Diğer oyuncunun karakteriyse)
+        // EĞER BU KARAKTER BİZE AİT DEĞİLSE
         if (!IsOwner)
         {
-            // Başkasının kamerasını ve sesini kapatıyor
             if (playerCamera != null)
             {
                 playerCamera.enabled = false;
@@ -35,23 +33,22 @@ public class PlayerController : NetworkBehaviour
                 if (listener != null) listener.enabled = false;
             }
 
-            // Başkasının karakter kontrolcüsünü kapatıyor
-            if (controller != null)
-            {
-                controller.enabled = false;
-            }
+            if (controller != null) controller.enabled = false;
             return;
         }
 
-        // --- BURASI SADECE BİZİM (OWNER) KARAKTERİMİZ İÇİN ÇALIŞIR ---
+        // --- SADECE BİZİM KARAKTERİMİZ İÇİN ÇALIŞIR ---
 
-        // Eğer CharacterController kapalı kaldıysa kesinlikle aktif et
-        if (controller != null)
+        // DOĞUM POZİSYONUNU AYARLAMA (Fizik kilitlenmesini önler)
+        if (PlayerSpawnManager.Instance != null)
         {
-            controller.enabled = true;
+            if (controller != null) controller.enabled = false; // Pozisyon değişirken fiziği kapat
+
+            transform.position = PlayerSpawnManager.Instance.GetNextSpawnPosition();
+
+            if (controller != null) controller.enabled = true; // Pozisyon değiştikten sonra aç
         }
 
-        // Kameranın ve AudioListener'ın açık olduğundan emin ol
         if (playerCamera != null)
         {
             playerCamera.enabled = true;
