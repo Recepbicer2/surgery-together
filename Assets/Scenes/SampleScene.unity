@@ -3108,7 +3108,7 @@ MonoBehaviour:
   NetworkConfig:
     ProtocolVersion: 0
     NetworkTransport: {fileID: 1371179621}
-    PlayerPrefab: {fileID: 8306524621911595837, guid: ceb3de887b92edc4b914288096477073, type: 3}
+    PlayerPrefab: {fileID: 546609262763033600, guid: 5a6455095c8ce0541a5d4a302cd162f1, type: 3}
     Prefabs:
       NetworkPrefabsLists:
       - {fileID: 11400000, guid: 45a0dcb12f46f6c4491bf7380133d01a, type: 2}
@@ -3571,6 +3571,10 @@ PrefabInstance:
     - target: {fileID: 2269404938074029637, guid: 5a6455095c8ce0541a5d4a302cd162f1, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7421117472443916673, guid: 5a6455095c8ce0541a5d4a302cd162f1, type: 3}
+      propertyPath: m_IsActive
+      value: 1
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
