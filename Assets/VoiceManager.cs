@@ -3,6 +3,7 @@ using UnityEngine;
 using Unity.Services.Core;
 using Unity.Services.Authentication;
 using Unity.Services.Vivox;
+using System.Threading.Tasks;
 
 public class VoiceManager : NetworkBehaviour
 {
@@ -18,6 +19,7 @@ public class VoiceManager : NetworkBehaviour
     public float distanceFactor = 1f;
 
     public bool IsTalking { get; private set; }
+    private bool isInChannel = false; // Kanala başarıyla girilip girilmediğini takip eden bayrak
 
     private void Awake()
     {
@@ -25,15 +27,18 @@ public class VoiceManager : NetworkBehaviour
         else Destroy(gameObject);
     }
 
-    private async void Start()
+    public override async void OnNetworkSpawn()
     {
+        base.OnNetworkSpawn();
+
+        // Sadece kendi karakterimiz için Vivox'u başlatıyoruz
         if (IsOwner)
         {
             await InitializeVivoxAsync();
         }
     }
 
-    private async System.Threading.Tasks.Task InitializeVivoxAsync()
+    private async Task InitializeVivoxAsync()
     {
         try
         {
@@ -47,11 +52,19 @@ public class VoiceManager : NetworkBehaviour
                 await AuthenticationService.Instance.SignInAnonymouslyAsync();
             }
 
-            await VivoxService.Instance.InitializeAsync();
-            await VivoxService.Instance.LoginAsync();
+            if (!VivoxService.Instance.IsLoggedIn)
+            {
+                await VivoxService.Instance.InitializeAsync();
+                await VivoxService.Instance.LoginAsync();
+            }
 
             Channel3DProperties positionalOptions = new Channel3DProperties(maxDistance, minDistance, distanceFactor, AudioFadeModel.LinearByDistance);
+
+            // Kanala katılmayı bekle
             await VivoxService.Instance.JoinPositionalChannelAsync(channelName, ChatCapability.AudioOnly, positionalOptions);
+
+            // Başarılı şekilde katıldık!
+            isInChannel = true;
 
             // Başlangıçta mikrofonu sessize alıyoruz (Push-to-Talk için)
             MuteMicrophone();
@@ -60,6 +73,7 @@ public class VoiceManager : NetworkBehaviour
         }
         catch (System.Exception e)
         {
+            isInChannel = false;
             Debug.LogError("Vivox Bağlantı Hatası: " + e.Message);
         }
     }
@@ -68,11 +82,13 @@ public class VoiceManager : NetworkBehaviour
     {
         if (!IsOwner) return;
 
-        if (VivoxService.Instance.IsLoggedIn)
+        // KRİTİK DÜZELTME: Sadece giriş yapılmışsa VE kanala tamamen katılmışsak pozisyon güncelle!
+        if (VivoxService.Instance != null && VivoxService.Instance.IsLoggedIn && isInChannel)
         {
             VivoxService.Instance.Set3DPosition(gameObject, channelName);
         }
 
+        // Push To Talk Kontrolleri
         if (Input.GetKeyDown(pushToTalkKey))
         {
             UnmuteMicrophone();
@@ -85,6 +101,8 @@ public class VoiceManager : NetworkBehaviour
 
     private void UnmuteMicrophone()
     {
+        if (!isInChannel) return;
+
         IsTalking = true;
         VivoxService.Instance.UnmuteInputDevice();
         Debug.Log("Mikrofon Açıldı");
@@ -92,6 +110,8 @@ public class VoiceManager : NetworkBehaviour
 
     private void MuteMicrophone()
     {
+        if (!isInChannel) return;
+
         IsTalking = false;
         VivoxService.Instance.MuteInputDevice();
         Debug.Log("Mikrofon Kapatıldı");
@@ -101,10 +121,15 @@ public class VoiceManager : NetworkBehaviour
     {
         base.OnDestroy();
 
-        if (IsOwner && VivoxService.Instance != null && VivoxService.Instance.IsLoggedIn)
+        if (IsOwner && VivoxService.Instance != null)
         {
-            await VivoxService.Instance.LeaveAllChannelsAsync();
-            await VivoxService.Instance.LogoutAsync();
+            isInChannel = false;
+
+            if (VivoxService.Instance.IsLoggedIn)
+            {
+                await VivoxService.Instance.LeaveAllChannelsAsync();
+                await VivoxService.Instance.LogoutAsync();
+            }
         }
     }
 }

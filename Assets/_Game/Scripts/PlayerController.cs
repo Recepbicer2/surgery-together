@@ -18,15 +18,14 @@ public class PlayerController : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
-        // Kamera ve Controller bileşenlerini güvenli şekilde al
         if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
         if (cameraTransform == null && playerCamera != null) cameraTransform = playerCamera.transform;
+
         controller = GetComponent<CharacterController>();
 
-        // --- EĞER BU KARAKTER BAŞKASINA AİTSE (REMOTE CLIENT) ---
+        // EĞER BU KARAKTER BİZE AİT DEĞİLSE (Diğer Oyuncular)
         if (!IsOwner)
         {
-            // Başkasının kamerasını ve ses dinleyicisini KESİNLİKLE KAPAT
             if (playerCamera != null)
             {
                 playerCamera.enabled = false;
@@ -35,15 +34,19 @@ public class PlayerController : NetworkBehaviour
             }
 
             if (controller != null) controller.enabled = false;
-            return; // İşlemi bitir, alt taraftaki bizim kendi kameramız için çalışacak!
+            return;
         }
 
-        // --- SADECE BİZİM KARAKTERİMİZ İÇİN (LOCAL OWNER) ---
+        // --- SADECE BİZİM KENDİ KARAKTERİMİZ İÇİN ÇALIŞIR ---
 
-        // 1. Sahnede duran Lobi / Sahne kamerasını TAMAMEN KAPAT
+        // 1. Sahnede duran Lobi Kamerasını ve AudioListener'ını TAMAMEN KAPAT
+        // (2 Audio Listener uyarısını çözen yer burasıdır)
         Camera mainCam = Camera.main;
         if (mainCam != null && mainCam != playerCamera)
         {
+            AudioListener mainListener = mainCam.GetComponent<AudioListener>();
+            if (mainListener != null) mainListener.enabled = false;
+
             mainCam.gameObject.SetActive(false);
         }
 
@@ -54,11 +57,17 @@ public class PlayerController : NetworkBehaviour
             playerCamera.enabled = true;
 
             AudioListener listener = playerCamera.GetComponent<AudioListener>();
-            if (listener == null) listener = playerCamera.gameObject.AddComponent<AudioListener>();
-            listener.enabled = true;
+            if (listener != null) listener.enabled = true;
         }
 
-        // 3. Teleport ve Doğum Pozisyonu
+        // 3. Katıl Butonunun Olduğu Lobi Canvas'ını Kapat
+        GameObject lobbyCanvas = GameObject.Find("HUD_Canvas") ?? GameObject.Find("HUD_Canvas 1");
+        if (lobbyCanvas != null)
+        {
+            lobbyCanvas.SetActive(false);
+        }
+
+        // 4. Doğum Pozisyonunu Ayarla
         if (PlayerSpawnManager.Instance != null)
         {
             if (controller != null) controller.enabled = false;
@@ -66,14 +75,13 @@ public class PlayerController : NetworkBehaviour
             if (controller != null) controller.enabled = true;
         }
 
-        // 4. Mouse'u Ekran Ortasına Kitle
+        // 5. Mouse'u Ortaya Kitle
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
 
     void Update()
     {
-        // Yetki bizde değilse kesinlikle hiçbir Input çalıştırma
         if (!IsOwner) return;
 
         // 1. Etrafa Bakma (Mouse)

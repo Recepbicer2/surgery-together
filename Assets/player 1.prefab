@@ -248,10 +248,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::VoiceManager
   ShowTopMostFoldoutHeaderGroup: 1
+  channelName: Game3DVoiceChannel
   pushToTalkKey: 118
-  isMuted: 0
   minDistance: 2
   maxDistance: 15
+  distanceFactor: 1
 --- !u!82 &-4875101551893115394
 AudioSource:
   m_ObjectHideFlags: 0
