@@ -156,7 +156,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2409675633
+  GlobalObjectIdHash: 1874510018
   InScenePlacedSourceGlobalObjectIdHash: 1874510018
   DeferredDespawnTick: 0
   Ownership: 1
@@ -186,7 +186,7 @@ MonoBehaviour:
   moveSpeed: 4
   mouseSensitivity: 2
   cameraTransform: {fileID: 4783283380797035883}
-  playerCamera: {fileID: 0}
+  playerCamera: {fileID: 6540574457540657632}
 --- !u!114 &2867390497908148132
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -496,11 +496,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b9f3a78c6314ce841ad43719a11f5b22, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HandBoard
+  ShowTopMostFoldoutHeaderGroup: 1
   tahtaMetni: {fileID: 8592810688845373331}
   inputPaneli: {fileID: 0}
   yaziInput: {fileID: 0}
-  mainCamera: {fileID: 0}
-  yumusamaHizi: 10
 --- !u!1 &6288760728552243376
 GameObject:
   m_ObjectHideFlags: 0

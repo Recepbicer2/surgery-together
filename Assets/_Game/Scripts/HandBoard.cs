@@ -1,8 +1,10 @@
 using UnityEngine;
-using UnityEngine.EventSystems; // EventSystem için eklendi
+using UnityEngine.EventSystems;
 using TMPro;
+using Unity.Netcode; // Netcode eklendi
+using Unity.Collections; // NetworkString için eklendi
 
-public class HandBoard : MonoBehaviour
+public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
 {
     [Header("UI & Yazı Referansları")]
     public TMP_Text tahtaMetni;         // Tahta üzerindeki World Space TMP_Text
@@ -11,6 +13,13 @@ public class HandBoard : MonoBehaviour
 
     [Header("Animasyon Pozisyonları")]
     public Transform mainCamera;
+
+    // AĞ SENKRONİZASYONU: Tahtadaki metni ağ üzerinde senkron tutar
+    private NetworkVariable<FixedString128Bytes> senkronizeYazi = new NetworkVariable<FixedString128Bytes>(
+        "",
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner
+    );
 
     // Pozisyonlar (Local)
     private Vector3 sakliPos = new Vector3(0.35f, -1.2f, 0.6f);   // 1 Tuşu: Ekranın altı (Görünmez)
@@ -27,6 +36,21 @@ public class HandBoard : MonoBehaviour
     private enum TahtaDurumu { Sakli, Normal, Yazma, Gosterme }
     private TahtaDurumu mevcutDurum = TahtaDurumu.Sakli; // Oyuna tahta gizli başlar
 
+    public override void OnNetworkSpawn()
+    {
+        // Ağ üzerindeki metin değiştiğinde tahta üzerindeki metni güncelle
+        senkronizeYazi.OnValueChanged += (eskiYazi, yeniYazi) =>
+        {
+            if (tahtaMetni != null) tahtaMetni.text = yeniYazi.ToString();
+        };
+
+        // Sonradan katılan oyuncular için mevcut yazıyı ayarla
+        if (tahtaMetni != null)
+        {
+            tahtaMetni.text = senkronizeYazi.Value.ToString();
+        }
+    }
+
     void Start()
     {
         // 1. Eğer yaziInput Inspector'dan atanmadıysa sahneden otomatik bul
@@ -41,19 +65,18 @@ public class HandBoard : MonoBehaviour
             inputPaneli = yaziInput.transform.parent.gameObject;
         }
 
-        // Event listener bağlama
+        // Event listener bağlama (Sadece kendi karakterimiz kontrol etsin)
         if (yaziInput != null)
         {
             yaziInput.onValueChanged.AddListener(TahtaYazisiniAnlikGuncelle);
-        }
-        else
-        {
-            Debug.LogError("HandBoard: Sahnede TMP_InputField bulunamadı!");
         }
     }
 
     void Update()
     {
+        // SADECE KARAKTERİN SAHİBİ TUŞLARA BASABİLİR
+        if (!IsOwner) return;
+
         // 1. Slottan Çıkar / İndir Tuşları (1 ve 2)
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
@@ -105,21 +128,17 @@ public class HandBoard : MonoBehaviour
 
         if (yazmaAcik && yaziInput != null)
         {
-            // ODAKLANMA DÜZELTMESİ:
-            // 1. Önce EventSystem üzerinden objeyi seçiyoruz
             if (EventSystem.current != null)
             {
                 EventSystem.current.SetSelectedGameObject(yaziInput.gameObject);
             }
 
-            // 2. Seçimi ve klavye odağını aktif ediyoruz
             yaziInput.Select();
             yaziInput.ActivateInputField();
         }
         else
         {
-            // Yazma modundan çıkınca EventSystem odağını temizle
-            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == yaziInput.gameObject)
+            if (yaziInput != null && EventSystem.current != null && EventSystem.current.currentSelectedGameObject == yaziInput.gameObject)
             {
                 EventSystem.current.SetSelectedGameObject(null);
             }
@@ -128,10 +147,16 @@ public class HandBoard : MonoBehaviour
 
     public void TahtaYazisiniAnlikGuncelle(string yeniYazi)
     {
+        if (!IsOwner) return;
+
+        // Yerel metni güncelle
         if (tahtaMetni != null)
         {
             tahtaMetni.text = yeniYazi;
         }
+
+        // Ağ değişkenini güncelle (Diğer oyunculara iletir)
+        senkronizeYazi.Value = yeniYazi;
     }
 
     public void TahtayaYaz()
@@ -139,6 +164,7 @@ public class HandBoard : MonoBehaviour
         if (tahtaMetni != null && yaziInput != null)
         {
             tahtaMetni.text = yaziInput.text;
+            if (IsOwner) senkronizeYazi.Value = yaziInput.text;
         }
         DurumDegistir(TahtaDurumu.Normal);
     }

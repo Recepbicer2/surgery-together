@@ -18,12 +18,16 @@ public class PlayerController : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
+        // Inspector'da atanmadıysa alt objelerdeki kamerayı otomatik bulur
+        if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
+        if (cameraTransform == null && playerCamera != null) cameraTransform = playerCamera.transform;
+
         controller = GetComponent<CharacterController>();
 
         // EĞER BU KARAKTER BİZE AİT DEĞİLSE (Diğer oyuncunun karakteriyse)
         if (!IsOwner)
         {
-            // Başkasının kamerasını kapatıyoruz
+            // Başkasının kamerasını ve sesini kapatıyor
             if (playerCamera != null)
             {
                 playerCamera.enabled = false;
@@ -31,7 +35,7 @@ public class PlayerController : NetworkBehaviour
                 if (listener != null) listener.enabled = false;
             }
 
-            // Başkasının CharacterController'ını kapatıyoruz ki bizim girdilerimiz onu etkilemesin
+            // Başkasının karakter kontrolcüsünü kapatıyor
             if (controller != null)
             {
                 controller.enabled = false;
