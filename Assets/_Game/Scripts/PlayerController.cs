@@ -1,6 +1,8 @@
+using Unity.Netcode;
 using UnityEngine;
 
-public class PlayerController : MonoBehaviour
+// 1. MonoBehaviour YERİNE NetworkBehaviour KULLANIYORUZ
+public class PlayerController : NetworkBehaviour
 {
     [Header("Hareket Ayarlari")]
     public float moveSpeed = 4f;
@@ -8,19 +10,40 @@ public class PlayerController : MonoBehaviour
 
     [Header("Bilesenler")]
     public Transform cameraTransform;
+    public Camera playerCamera; // Kamera bileşenini kapatıp açabilmek için eklendi
 
     private CharacterController controller;
     private float verticalRotation = 0f;
 
-    void Start()
+    // Start yerine Network'ün kendi doğma fonksiyonunu kullanıyoruz
+    public override void OnNetworkSpawn()
     {
+        base.OnNetworkSpawn();
+
         controller = GetComponent<CharacterController>();
-        // Fareyi ekrana kitle (FPS modu)
+
+        // EĞER BU OBJENIN SAHİBİ BİZ DEĞİLSEK (Diğer oyuncuysa):
+        if (!IsOwner)
+        {
+            // Kamera bileşenini ve dinleyicisini kapatıyoruz ki kendi ekranımız bozulmasın
+            if (playerCamera != null)
+            {
+                playerCamera.enabled = false;
+                AudioListener listener = playerCamera.GetComponent<AudioListener>();
+                if (listener != null) listener.enabled = false;
+            }
+            return;
+        }
+
+        // Sadece kendi karakterimiz için fareyi ekrana kitle
         Cursor.lockState = CursorLockMode.Locked;
     }
 
     void Update()
     {
+        // 2. KRİTİK KONTROL: Bu karakter bizim değilse hiç kod çalıştırma!
+        if (!IsOwner) return;
+
         // 1. Etrafa Bakma (Mouse)
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
@@ -29,13 +52,20 @@ public class PlayerController : MonoBehaviour
 
         verticalRotation -= mouseY;
         verticalRotation = Mathf.Clamp(verticalRotation, -80f, 80f);
-        cameraTransform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
+
+        if (cameraTransform != null)
+        {
+            cameraTransform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
+        }
 
         // 2. Yürüme (WASD)
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
 
         Vector3 move = transform.right * x + transform.forward * z;
-        controller.Move(move * moveSpeed * Time.deltaTime);
+        if (controller != null)
+        {
+            controller.Move(move * moveSpeed * Time.deltaTime);
+        }
     }
 }
