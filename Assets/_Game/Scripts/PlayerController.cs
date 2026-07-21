@@ -39,7 +39,27 @@ public class PlayerController : NetworkBehaviour
 
         // --- SADECE BİZİM KARAKTERİMİZ İÇİN ÇALIŞIR ---
 
-        // DOĞUM POZİSYONUNU AYARLAMA (Fizik kilitlenmesini önler)
+        // 1. Sahnede Varsa Lobi/Ana Kamerayı Kapat (No Cameras Rendering Hatasını Önler)
+        Camera mainCam = Camera.main;
+        if (mainCam != null && mainCam != playerCamera)
+        {
+            mainCam.gameObject.SetActive(false);
+        }
+
+        // 2. Bağlanan Oyuncu İçin Lobi/Giriş Ekranı Panellerini Kapat
+        // (Ekranda takılı kalan "Host Ol / Odaya Katıl" panelini gizler)
+        GameObject lobbyUI = GameObject.Find("LobbyCanvas") ?? GameObject.Find("StartCanvas") ?? GameObject.Find("Canvas");
+        if (lobbyUI != null)
+        {
+            // Giriş paneli / oda kodu paneli Canvas içindeyse gizliyoruz
+            Transform panelTransform = lobbyUI.transform.Find("LobbyPanel") ?? lobbyUI.transform.Find("StartPanel") ?? lobbyUI.transform.Find("MainPanel");
+            if (panelTransform != null)
+            {
+                panelTransform.gameObject.SetActive(false);
+            }
+        }
+
+        // 3. DOĞUM POZİSYONUNU AYARLAMA (Fizik kilitlenmesini önler)
         if (PlayerSpawnManager.Instance != null)
         {
             if (controller != null) controller.enabled = false; // Pozisyon değişirken fiziği kapat
@@ -49,12 +69,17 @@ public class PlayerController : NetworkBehaviour
             if (controller != null) controller.enabled = true; // Pozisyon değiştikten sonra aç
         }
 
+        // 4. Kendi Kameramızı ve Ses Dinleyicimizi Aç
         if (playerCamera != null)
         {
             playerCamera.enabled = true;
             AudioListener listener = playerCamera.GetComponent<AudioListener>();
             if (listener != null) listener.enabled = true;
         }
+
+        // 5. Oyuna Girildiği İçin Fareyi Ekranın Ortasına Kitle
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 
     void Update()

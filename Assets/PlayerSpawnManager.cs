@@ -21,11 +21,22 @@ public class PlayerSpawnManager : MonoBehaviour
     {
         if (spawnPoints == null || spawnPoints.Length == 0)
         {
-            return Vector3.zero; // Eğer pozisyon atanmadıysa 0,0,0 döner
+            Debug.LogWarning("PlayerSpawnManager: Hiç spawn noktası atanmamış! Vector3.zero dönüyor.");
+            return Vector3.zero;
         }
 
-        Vector3 selectedPos = spawnPoints[currentSpawnIndex % spawnPoints.Length].position;
+        // Seçilen index'teki noktayı al
+        Transform targetSpawn = spawnPoints[currentSpawnIndex % spawnPoints.Length];
+
+        // Sıradaki oyuncu için index'i arttır
         currentSpawnIndex++;
-        return selectedPos;
+
+        // Eğer Inspector'da eleman boş bırakılmadıysa pozisyonu döndür
+        if (targetSpawn != null)
+        {
+            return targetSpawn.position;
+        }
+
+        return Vector3.zero;
     }
 }
