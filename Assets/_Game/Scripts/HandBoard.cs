@@ -1,15 +1,15 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 using TMPro;
-using Unity.Netcode; // Netcode eklendi
-using Unity.Collections; // NetworkString için eklendi
+using Unity.Netcode;
+using Unity.Collections;
 
-public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
+public class HandBoard : NetworkBehaviour
 {
     [Header("UI & Yazı Referansları")]
-    public TMP_Text tahtaMetni;         // Tahta üzerindeki World Space TMP_Text
-    public GameObject inputPaneli;      // YaziInputPaneli objesi
-    public TMP_InputField yaziInput;    // YaziInputPaneli içindeki TMP_InputField bileşeni
+    public TMP_Text tahtaMetni;
+    public GameObject inputPaneli;
+    public TMP_InputField yaziInput;
 
     [Header("Animasyon Pozisyonları")]
     public Transform mainCamera;
@@ -21,20 +21,27 @@ public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
         NetworkVariableWritePermission.Owner
     );
 
+    // Enum'u public yaptık ki NetworkVariable rahatça tanısın
+    public enum TahtaDurumu { Sakli, Normal, Yazma, Gosterme }
+
+    // AĞ SENKRONİZASYONU: Tahtanın Hangi Pozisyonda Olduğunu (Durumunu) Senkronize Tutar
+    private NetworkVariable<TahtaDurumu> senkronizeDurum = new NetworkVariable<TahtaDurumu>(
+        TahtaDurumu.Sakli,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Owner
+    );
+
     // Pozisyonlar (Local)
-    private Vector3 sakliPos = new Vector3(0.35f, -1.2f, 0.6f);   // 1 Tuşu: Ekranın altı (Görünmez)
-    private Vector3 normalPos = new Vector3(0.35f, -0.35f, 0.6f); // 2 Tuşu: Elde tutma
-    private Vector3 yazmaPos = new Vector3(0f, -0.1f, 0.45f);    // Tab Tuşu: Odaklanmış yazma
-    private Vector3 gosterPos = new Vector3(0f, 0.1f, 0.5f);     // B Tuşu: Camdan gösterme
+    private Vector3 sakliPos = new Vector3(0.35f, -1.2f, 0.6f);
+    private Vector3 normalPos = new Vector3(0.35f, -0.35f, 0.6f);
+    private Vector3 yazmaPos = new Vector3(0f, -0.1f, 0.45f);
+    private Vector3 gosterPos = new Vector3(0f, 0.1f, 0.5f);
 
     private Vector3 normalRot = new Vector3(10f, -20f, 0f);
     private Vector3 yazmaRot = new Vector3(25f, 0f, 0f);
     private Vector3 gosterRot = new Vector3(0f, 180f, 0f);
 
     public float yumusamaHizi = 10f;
-
-    private enum TahtaDurumu { Sakli, Normal, Yazma, Gosterme }
-    private TahtaDurumu mevcutDurum = TahtaDurumu.Sakli; // Oyuna tahta gizli başlar
 
     public override void OnNetworkSpawn()
     {
@@ -44,7 +51,6 @@ public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
             if (tahtaMetni != null) tahtaMetni.text = yeniYazi.ToString();
         };
 
-        // Sonradan katılan oyuncular için mevcut yazıyı ayarla
         if (tahtaMetni != null)
         {
             tahtaMetni.text = senkronizeYazi.Value.ToString();
@@ -53,86 +59,71 @@ public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
 
     void Start()
     {
-        // 1. Eğer yaziInput Inspector'dan atanmadıysa sahneden otomatik bul (Kapalı olsa bile bulur!)
         if (yaziInput == null)
-        {
-            // FindObjectsInactive.Include sayesinde panel gizliyse bile Unity onu yakalar
             yaziInput = FindFirstObjectByType<TMP_InputField>(FindObjectsInactive.Include);
-        }
 
-        // 2. Eğer inputPaneli atanmadıysa yaziInput'un bağlı olduğu paneli bul
         if (inputPaneli == null && yaziInput != null)
-        {
             inputPaneli = yaziInput.transform.parent.gameObject;
-        }
 
-        // Event listener bağlama
         if (yaziInput != null)
-        {
             yaziInput.onValueChanged.AddListener(TahtaYazisiniAnlikGuncelle);
-        }
     }
 
     void Update()
     {
-        // SADECE KARAKTERİN SAHİBİ TUŞLARA BASABİLİR
+        // 1. ÖNEMLİ DEĞİŞİKLİK: Pozisyon güncellemelerini IsOwner kontrolünden ÖNCEYE aldık.
+        // Böylece ağdaki herkes senin tahtanın senkronizeDurum'una bakıp tahtanı hareket ettirebilecek!
+        TahtaHareketiGuncelle();
+
+        // 2. SADECE KARAKTERİN SAHİBİ TUŞLARA BASABİLİR (Tuş kontrolleri buradan sonra)
         if (!IsOwner) return;
 
-        // 1. Slottan Çıkar / İndir Tuşları (1 ve 2)
         if (Input.GetKeyDown(KeyCode.Alpha1))
-        {
             DurumDegistir(TahtaDurumu.Sakli);
-        }
-        if (Input.GetKeyDown(KeyCode.Alpha2))
-        {
-            DurumDegistir(TahtaDurumu.Normal);
-        }
 
-        // 2. TAB Tuşu: Sadece tahta eldeyse (Normal) veya zaten yazma modundaysa çalışır
+        if (Input.GetKeyDown(KeyCode.Alpha2))
+            DurumDegistir(TahtaDurumu.Normal);
+
         if (Input.GetKeyDown(KeyCode.Tab))
         {
-            if (mevcutDurum == TahtaDurumu.Yazma)
+            if (senkronizeDurum.Value == TahtaDurumu.Yazma)
                 DurumDegistir(TahtaDurumu.Normal);
-            else if (mevcutDurum == TahtaDurumu.Normal)
+            else if (senkronizeDurum.Value == TahtaDurumu.Normal)
                 DurumDegistir(TahtaDurumu.Yazma);
         }
 
-        // 3. B Tuşu: Sadece tahta eldeyse veya gösterme modundaysa çalışır
         if (Input.GetKeyDown(KeyCode.B))
         {
-            if (mevcutDurum == TahtaDurumu.Gosterme)
+            if (senkronizeDurum.Value == TahtaDurumu.Gosterme)
                 DurumDegistir(TahtaDurumu.Normal);
-            else if (mevcutDurum == TahtaDurumu.Normal)
+            else if (senkronizeDurum.Value == TahtaDurumu.Normal)
                 DurumDegistir(TahtaDurumu.Gosterme);
         }
 
-        // 4. Yazma Modundayken ENTER'a basınca yazıyı kaydet ve normal elde tutmaya dön
-        if (mevcutDurum == TahtaDurumu.Yazma && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
+        if (senkronizeDurum.Value == TahtaDurumu.Yazma && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
         {
             TahtayaYaz();
         }
-
-        // Pozisyon Geçişlerini Yumuşak Yap
-        TahtaHareketiGuncelle();
     }
 
     void DurumDegistir(TahtaDurumu yeniDurum)
     {
-        mevcutDurum = yeniDurum;
+        if (!IsOwner) return;
 
-        bool yazmaAcik = (mevcutDurum == TahtaDurumu.Yazma);
+        // Ağdaki durumu güncelliyoruz ki herkes tahtanın yeni pozisyonunu bilsin
+        senkronizeDurum.Value = yeniDurum;
+
+        // UI, Fare ve Yazı Paneli SADECE BİZİM EKRANIMIZDA açılıp kapansın
+        bool yazmaAcik = (yeniDurum == TahtaDurumu.Yazma);
         if (inputPaneli != null) inputPaneli.SetActive(yazmaAcik);
 
-        // Fare kontrolü
         Cursor.lockState = yazmaAcik ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = yazmaAcik;
 
         if (yazmaAcik && yaziInput != null)
         {
             if (EventSystem.current != null)
-            {
                 EventSystem.current.SetSelectedGameObject(yaziInput.gameObject);
-            }
 
             yaziInput.Select();
             yaziInput.ActivateInputField();
@@ -150,13 +141,7 @@ public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
     {
         if (!IsOwner) return;
 
-        // Yerel metni güncelle
-        if (tahtaMetni != null)
-        {
-            tahtaMetni.text = yeniYazi;
-        }
-
-        // Ağ değişkenini güncelle (Diğer oyunculara iletir)
+        if (tahtaMetni != null) tahtaMetni.text = yeniYazi;
         senkronizeYazi.Value = yeniYazi;
     }
 
@@ -175,7 +160,8 @@ public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
         Vector3 hedefPos = normalPos;
         Vector3 hedefRot = normalRot;
 
-        switch (mevcutDurum)
+        // Tahtanın durumunu artık kendi yerel değişkenimizden değil, AĞDAKİ SENKRONİZE DEĞİŞKENDEN okuyoruz
+        switch (senkronizeDurum.Value)
         {
             case TahtaDurumu.Sakli:
                 hedefPos = sakliPos;
@@ -195,7 +181,6 @@ public class HandBoard : NetworkBehaviour // NetworkBehaviour yapıldı
                 break;
         }
 
-        // Yumuşak geçişler
         transform.localPosition = Vector3.Lerp(transform.localPosition, hedefPos, Time.deltaTime * yumusamaHizi);
         transform.localRotation = Quaternion.Slerp(transform.localRotation, Quaternion.Euler(hedefRot), Time.deltaTime * yumusamaHizi);
     }
