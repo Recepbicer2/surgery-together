@@ -18,14 +18,15 @@ public class PlayerController : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
+        // Kamera ve Controller bileşenlerini güvenli şekilde al
         if (playerCamera == null) playerCamera = GetComponentInChildren<Camera>();
         if (cameraTransform == null && playerCamera != null) cameraTransform = playerCamera.transform;
-
         controller = GetComponent<CharacterController>();
 
-        // EĞER BU KARAKTER BİZE AİT DEĞİLSE
+        // --- EĞER BU KARAKTER BAŞKASINA AİTSE (REMOTE CLIENT) ---
         if (!IsOwner)
         {
+            // Başkasının kamerasını ve ses dinleyicisini KESİNLİKLE KAPAT
             if (playerCamera != null)
             {
                 playerCamera.enabled = false;
@@ -34,50 +35,38 @@ public class PlayerController : NetworkBehaviour
             }
 
             if (controller != null) controller.enabled = false;
-            return;
+            return; // İşlemi bitir, alt taraftaki bizim kendi kameramız için çalışacak!
         }
 
-        // --- SADECE BİZİM KARAKTERİMİZ İÇİN ÇALIŞIR ---
+        // --- SADECE BİZİM KARAKTERİMİZ İÇİN (LOCAL OWNER) ---
 
-        // 1. Sahnede Varsa Lobi/Ana Kamerayı Kapat (No Cameras Rendering Hatasını Önler)
+        // 1. Sahnede duran Lobi / Sahne kamerasını TAMAMEN KAPAT
         Camera mainCam = Camera.main;
         if (mainCam != null && mainCam != playerCamera)
         {
             mainCam.gameObject.SetActive(false);
         }
 
-        // 2. Bağlanan Oyuncu İçin Lobi/Giriş Ekranı Panellerini Kapat
-        // (Ekranda takılı kalan "Host Ol / Odaya Katıl" panelini gizler)
-        GameObject lobbyUI = GameObject.Find("LobbyCanvas") ?? GameObject.Find("StartCanvas") ?? GameObject.Find("Canvas");
-        if (lobbyUI != null)
-        {
-            // Giriş paneli / oda kodu paneli Canvas içindeyse gizliyoruz
-            Transform panelTransform = lobbyUI.transform.Find("LobbyPanel") ?? lobbyUI.transform.Find("StartPanel") ?? lobbyUI.transform.Find("MainPanel");
-            if (panelTransform != null)
-            {
-                panelTransform.gameObject.SetActive(false);
-            }
-        }
-
-        // 3. DOĞUM POZİSYONUNU AYARLAMA (Fizik kilitlenmesini önler)
-        if (PlayerSpawnManager.Instance != null)
-        {
-            if (controller != null) controller.enabled = false; // Pozisyon değişirken fiziği kapat
-
-            transform.position = PlayerSpawnManager.Instance.GetNextSpawnPosition();
-
-            if (controller != null) controller.enabled = true; // Pozisyon değiştikten sonra aç
-        }
-
-        // 4. Kendi Kameramızı ve Ses Dinleyicimizi Aç
+        // 2. Kendi Oyuncu Kameramızı ve Ses Dinleyicimizi AÇ
         if (playerCamera != null)
         {
+            playerCamera.gameObject.SetActive(true);
             playerCamera.enabled = true;
+
             AudioListener listener = playerCamera.GetComponent<AudioListener>();
-            if (listener != null) listener.enabled = true;
+            if (listener == null) listener = playerCamera.gameObject.AddComponent<AudioListener>();
+            listener.enabled = true;
         }
 
-        // 5. Oyuna Girildiği İçin Fareyi Ekranın Ortasına Kitle
+        // 3. Teleport ve Doğum Pozisyonu
+        if (PlayerSpawnManager.Instance != null)
+        {
+            if (controller != null) controller.enabled = false;
+            transform.position = PlayerSpawnManager.Instance.GetNextSpawnPosition();
+            if (controller != null) controller.enabled = true;
+        }
+
+        // 4. Mouse'u Ekran Ortasına Kitle
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
