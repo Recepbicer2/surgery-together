@@ -1,7 +1,6 @@
 using Unity.Netcode;
 using UnityEngine;
 
-// 1. MonoBehaviour YERİNE NetworkBehaviour KULLANIYORUZ
 public class PlayerController : NetworkBehaviour
 {
     [Header("Hareket Ayarlari")]
@@ -10,20 +9,21 @@ public class PlayerController : NetworkBehaviour
 
     [Header("Bilesenler")]
     public Transform cameraTransform;
-    public Camera playerCamera; // Kamera bileşenini kapatıp açabilmek için eklendi
+    public Camera playerCamera;
 
     private CharacterController controller;
     private float verticalRotation = 0f;
 
-    // Start yerine Network'ün kendi doğma fonksiyonunu kullanıyoruz
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
 
         controller = GetComponent<CharacterController>();
 
+        // EĞER BU KARAKTER BİZE AİT DEĞİLSE (Diğer oyuncunun karakteriyse)
         if (!IsOwner)
         {
+            // Başkasının kamerasını kapatıyoruz
             if (playerCamera != null)
             {
                 playerCamera.enabled = false;
@@ -31,19 +31,34 @@ public class PlayerController : NetworkBehaviour
                 if (listener != null) listener.enabled = false;
             }
 
-            if (controller != null) controller.enabled = false;
+            // Başkasının CharacterController'ını kapatıyoruz ki bizim girdilerimiz onu etkilemesin
+            if (controller != null)
+            {
+                controller.enabled = false;
+            }
             return;
         }
 
-        if (controller != null) controller.enabled = true;
+        // --- BURASI SADECE BİZİM (OWNER) KARAKTERİMİZ İÇİN ÇALIŞIR ---
 
-        // DIKKAT: Cursor.lockState kısmını buradan kaldırdık!
-        // İmleç kilitlenmesini bağlantı başarılı olunca RelayTestUI veya oyun akışı yönetecek.
+        // Eğer CharacterController kapalı kaldıysa kesinlikle aktif et
+        if (controller != null)
+        {
+            controller.enabled = true;
+        }
+
+        // Kameranın ve AudioListener'ın açık olduğundan emin ol
+        if (playerCamera != null)
+        {
+            playerCamera.enabled = true;
+            AudioListener listener = playerCamera.GetComponent<AudioListener>();
+            if (listener != null) listener.enabled = true;
+        }
     }
 
     void Update()
     {
-        // 2. KRİTİK KONTROL: Bu karakter bizim değilse hiç kod çalıştırma!
+        // Yetki bizde değilse kesinlikle hiçbir Input çalıştırma
         if (!IsOwner) return;
 
         // 1. Etrafa Bakma (Mouse)
@@ -65,7 +80,8 @@ public class PlayerController : NetworkBehaviour
         float z = Input.GetAxis("Vertical");
 
         Vector3 move = transform.right * x + transform.forward * z;
-        if (controller != null)
+
+        if (controller != null && controller.enabled)
         {
             controller.Move(move * moveSpeed * Time.deltaTime);
         }

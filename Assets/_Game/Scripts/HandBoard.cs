@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems; // EventSystem için eklendi
 using TMPro;
 
 public class HandBoard : MonoBehaviour
@@ -28,9 +29,26 @@ public class HandBoard : MonoBehaviour
 
     void Start()
     {
+        // 1. Eğer yaziInput Inspector'dan atanmadıysa sahneden otomatik bul
+        if (yaziInput == null)
+        {
+            yaziInput = FindFirstObjectByType<TMP_InputField>();
+        }
+
+        // 2. Eğer inputPaneli atanmadıysa yaziInput'un bağlı olduğu paneli bul
+        if (inputPaneli == null && yaziInput != null)
+        {
+            inputPaneli = yaziInput.transform.parent.gameObject;
+        }
+
+        // Event listener bağlama
         if (yaziInput != null)
         {
             yaziInput.onValueChanged.AddListener(TahtaYazisiniAnlikGuncelle);
+        }
+        else
+        {
+            Debug.LogError("HandBoard: Sahnede TMP_InputField bulunamadı!");
         }
     }
 
@@ -39,11 +57,11 @@ public class HandBoard : MonoBehaviour
         // 1. Slottan Çıkar / İndir Tuşları (1 ve 2)
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
-            DurumDegistir(TahtaDurumu.Sakli); // Tahtayı bel seviyesinin altına indirir
+            DurumDegistir(TahtaDurumu.Sakli);
         }
         if (Input.GetKeyDown(KeyCode.Alpha2))
         {
-            DurumDegistir(TahtaDurumu.Normal); // Tahtayı ele alır
+            DurumDegistir(TahtaDurumu.Normal);
         }
 
         // 2. TAB Tuşu: Sadece tahta eldeyse (Normal) veya zaten yazma modundaysa çalışır
@@ -87,7 +105,24 @@ public class HandBoard : MonoBehaviour
 
         if (yazmaAcik && yaziInput != null)
         {
+            // ODAKLANMA DÜZELTMESİ:
+            // 1. Önce EventSystem üzerinden objeyi seçiyoruz
+            if (EventSystem.current != null)
+            {
+                EventSystem.current.SetSelectedGameObject(yaziInput.gameObject);
+            }
+
+            // 2. Seçimi ve klavye odağını aktif ediyoruz
+            yaziInput.Select();
             yaziInput.ActivateInputField();
+        }
+        else
+        {
+            // Yazma modundan çıkınca EventSystem odağını temizle
+            if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == yaziInput.gameObject)
+            {
+                EventSystem.current.SetSelectedGameObject(null);
+            }
         }
     }
 

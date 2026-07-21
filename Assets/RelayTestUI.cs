@@ -3,6 +3,10 @@ using UnityEngine;
 
 public class RelayTestUI : MonoBehaviour
 {
+    [Header("UI Referansları")]
+    [Tooltip("Sahnede kapatılmasını istediğin Canvas objesini buraya sürükle")]
+    public GameObject hudCanvas;
+
     private string inputJoinCode = "";
     private string currentJoinCode = "";
     private string statusMessage = "";
@@ -141,8 +145,15 @@ public class RelayTestUI : MonoBehaviour
     private void OnSuccessfulConnection()
     {
         isConnected = true;
+
         // Bağlantı kurulduğu an imleci ekrana kilitle ve gizle
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
+
+        // Sahnedeki HUD / UI Canvas'ını kapat
+        if (hudCanvas != null)
+        {
+            hudCanvas.SetActive(false);
+        }
     }
 }
