@@ -37,7 +37,7 @@ public class HoldableObject : NetworkBehaviour, IInteractable
     {
         if (isHeld) return;
 
-        PlayerInteraction player = FindObjectOfType<PlayerInteraction>();
+        PlayerInteraction player = FindFirstObjectByType<PlayerInteraction>();
         if (player != null && player.holdPoint != null)
         {
             PickUp(player.holdPoint);

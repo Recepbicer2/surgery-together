@@ -59,14 +59,15 @@ public class HandBoard : NetworkBehaviour
 
     void Start()
     {
+        // GÜVENLİK: Eğer Inspector'dan atanmamışsa bulmaya çalış (Ama Inspector'dan atamanı tavsiye ederim!)
         if (yaziInput == null)
             yaziInput = FindFirstObjectByType<TMP_InputField>(FindObjectsInactive.Include);
 
         if (inputPaneli == null && yaziInput != null)
             inputPaneli = yaziInput.transform.parent.gameObject;
 
-        if (yaziInput != null)
-            yaziInput.onValueChanged.AddListener(TahtaYazisiniAnlikGuncelle);
+        // DİKKAT: Ağı yormamak için onValueChanged olayını BURADAN KALDIRDIK.
+        // Artık sadece oyuncu Enter'a basıp işi bitirdiğinde ağa gidecek.
     }
 
     void Update()
@@ -149,9 +150,17 @@ public class HandBoard : NetworkBehaviour
     {
         if (tahtaMetni != null && yaziInput != null)
         {
+            // Yazıyı sadece işlem bittiğinde ağdaki diğer oyunculara gönderiyoruz
             tahtaMetni.text = yaziInput.text;
-            if (IsOwner) senkronizeYazi.Value = yaziInput.text;
+            if (IsOwner)
+            {
+                senkronizeYazi.Value = yaziInput.text;
+            }
         }
+
+        // İşlem bitince input'un içini temizlemek istersen (isteğe bağlı):
+        if (yaziInput != null) yaziInput.text = "";
+
         DurumDegistir(TahtaDurumu.Normal);
     }
 
