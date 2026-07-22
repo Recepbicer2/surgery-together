@@ -7,7 +7,7 @@ public class PlayerInteraction : NetworkBehaviour
     [Header("Etkileşim Ayarları")]
     public float interactDistance = 3f;
     public LayerMask interactLayer;
-    public Transform holdPoint; // Kameranın önündeki HoldPoint noktası
+    public Transform holdPoint;
 
     [Header("UI Referansları")]
     public TMP_Text interactUI;
@@ -35,24 +35,14 @@ public class PlayerInteraction : NetworkBehaviour
     {
         if (!IsOwner || playerCam == null) return;
 
-        // 1. ELİMİZDE EŞYA VARKEN G TUŞUNA BASILIRSA (FIRLAT / BIRA)
-        if (currentHeldObject != null)
+        // ELİMİZDE EŞYA VARKEN G TUŞUNA BASILIRSA (FIRLAT)
+        if (currentHeldObject != null && Input.GetKeyDown(KeyCode.G))
         {
-            if (Input.GetKeyDown(KeyCode.G))
-            {
-                // Kameranın baktığı yöne doğru fırlat
-                currentHeldObject.Throw(playerCam.transform.forward);
-                currentHeldObject = null;
-            }
-
-            // Elimizde eşya varken ekrandaki E ipucunu gizle
-            if (interactUI != null && interactUI.gameObject.activeSelf)
-                interactUI.gameObject.SetActive(false);
-
-            return; // Elimizde eşya varken yeni etkileşim arama
+            currentHeldObject.Throw(playerCam.transform.forward);
+            currentHeldObject = null;
         }
 
-        // 2. ELİMİZ BOŞSA NORMAL RAYCAST ETKİLEŞİMİ YAP
+        // Artık elimiz doluyken de Raycast atıyoruz ki kutuyu görebilelim!
         CheckForInteractable();
     }
 
@@ -67,29 +57,58 @@ public class PlayerInteraction : NetworkBehaviour
 
             if (interactable != null)
             {
-                if (interactUI != null)
+                // DURUM 1: ELİMİZDE EŞYA VAR VE BAKTIĞIMIZ ŞEY BİR KOYMA KUTUSU
+                if (currentHeldObject != null)
                 {
-                    interactUI.text = interactable.GetInteractPrompt();
-                    interactUI.gameObject.SetActive(true);
+                    PlacementBox box = hit.collider.GetComponent<PlacementBox>();
+                    if (box != null)
+                    {
+                        ShowUI(box.GetInteractPrompt());
+
+                        if (Input.GetKeyDown(KeyCode.E))
+                        {
+                            currentHeldObject.Place(box.placePoint.position, box.placePoint.rotation);
+                            currentHeldObject = null;
+                        }
+                    }
+                    else
+                    {
+                        HideUI(); // Kutudan başka bir şeye bakıyorsak yazıyı gizle
+                    }
                 }
-
-                if (Input.GetKeyDown(KeyCode.E))
+                // DURUM 2: ELİMİZ BOŞ VE ALINABİLİR BİR EŞYAYA BAKIYORUZ
+                else
                 {
-                    interactable.Interact();
-
-                    // Eğer etkileşime geçtiğimiz obje elimize alınabilen bir objeyse
                     HoldableObject holdable = hit.collider.GetComponent<HoldableObject>();
                     if (holdable != null)
                     {
-                        currentHeldObject = holdable;
-                        currentHeldObject.PickUp(holdPoint);
+                        ShowUI(interactable.GetInteractPrompt());
+
+                        if (Input.GetKeyDown(KeyCode.E))
+                        {
+                            interactable.Interact();
+                            currentHeldObject = holdable;
+                        }
                     }
                 }
-
-                return;
+                return; // Işın bir etkileşim objesine çarptıysa işlemi bitir
             }
         }
 
+        HideUI(); // Işın boşa gidiyorsa yazıyı kapat
+    }
+
+    private void ShowUI(string text)
+    {
+        if (interactUI != null)
+        {
+            interactUI.text = text;
+            if (!interactUI.gameObject.activeSelf) interactUI.gameObject.SetActive(true);
+        }
+    }
+
+    private void HideUI()
+    {
         if (interactUI != null && interactUI.gameObject.activeSelf)
         {
             interactUI.gameObject.SetActive(false);

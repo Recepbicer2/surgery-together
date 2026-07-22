@@ -129,7 +129,32 @@ public class HoldableObject : NetworkBehaviour, IInteractable
         transform.position += throwDirection * 0.5f;
         rb.AddForce(throwDirection * throwForce, ForceMode.Impulse);
     }
+    // === YERLEŞTİRME (PLACE) İŞLEMİ ===
+    public void Place(Vector3 position, Quaternion rotation)
+    {
+        if (!isHeld) return;
+        RequestPlaceRpc(position, rotation);
+    }
 
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void RequestPlaceRpc(Vector3 position, Quaternion rotation)
+    {
+        ExecutePlaceRpc(position, rotation);
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ExecutePlaceRpc(Vector3 position, Quaternion rotation)
+    {
+        isHeld = false;
+        currentHolder = null;
+
+        // Fiziği tekrar aç ve objeyi kutunun belirlediği noktaya oturt
+        rb.isKinematic = false;
+        rb.useGravity = true;
+
+        transform.position = position;
+        transform.rotation = rotation;
+    }
     public bool IsHeld()
     {
         return isHeld;
