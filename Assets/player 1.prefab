@@ -33,6 +33,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 7465773057355492562}
+  - {fileID: 8624774308347912579}
   m_Father: {fileID: 8912614039673299301}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!20 &4473681004896050880
@@ -138,6 +139,37 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!1 &1150562880471149846
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8624774308347912579}
+  m_Layer: 0
+  m_Name: HoldPoint
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8624774308347912579
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1150562880471149846}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -0.2, z: 1.5}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2787972395609508427}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &3246662185697644196
 GameObject:
   m_ObjectHideFlags: 0
@@ -527,6 +559,7 @@ GameObject:
   - component: {fileID: 2882572122782969349}
   - component: {fileID: 6379722760968278750}
   - component: {fileID: 8933997873386410511}
+  - component: {fileID: -8285256532133113455}
   m_Layer: 0
   m_Name: player 1
   m_TagString: Untagged
@@ -694,8 +727,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   ShowTopMostFoldoutHeaderGroup: 1
-  moveSpeed: 4
+  walkSpeed: 1
+  runSpeed: 2
+  crouchSpeed: 2
   mouseSensitivity: 2
+  jumpHeight: 1.2
+  gravity: -19.62
+  normalHeight: 2
+  crouchHeight: 1
+  cameraNormalY: 0.8
+  cameraCrouchY: 0.3
   cameraTransform: {fileID: 2787972395609508427}
   playerCamera: {fileID: 4473681004896050880}
 --- !u!114 &2882572122782969349
@@ -855,3 +896,22 @@ MonoBehaviour:
   SwitchTransformSpaceWhenParented: 0
   Interpolate: 1
   SlerpPosition: 0
+--- !u!114 &-8285256532133113455
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7152999069737311008}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 600c97e3ff660a7499ffde3001036eac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PlayerInteraction
+  ShowTopMostFoldoutHeaderGroup: 1
+  interactDistance: 3
+  interactLayer:
+    serializedVersion: 2
+    m_Bits: 8
+  holdPoint: {fileID: 8624774308347912579}
+  interactUI: {fileID: 0}

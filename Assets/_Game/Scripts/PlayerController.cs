@@ -3,16 +3,31 @@ using UnityEngine;
 
 public class PlayerController : NetworkBehaviour
 {
-    [Header("Hareket Ayarlari")]
-    public float moveSpeed = 4f;
+    [Header("Hareket Ayarları")]
+    public float walkSpeed = 4f;
+    public float runSpeed = 7f;
+    public float crouchSpeed = 2f;
     public float mouseSensitivity = 2f;
 
-    [Header("Bilesenler")]
+    [Header("Fizik & Zıplama")]
+    public float jumpHeight = 1.2f;
+    public float gravity = -19.62f; // Gerçekçi düşüş için standart gravity (-9.81) x 2
+
+    [Header("Eğilme (Crouch) Ayarları")]
+    public float normalHeight = 2.0f;
+    public float crouchHeight = 1.0f;
+    public float cameraNormalY = 0.8f;
+    public float cameraCrouchY = 0.3f;
+
+    [Header("Bileşenler")]
     public Transform cameraTransform;
     public Camera playerCamera;
 
     private CharacterController controller;
     private float verticalRotation = 0f;
+    private Vector3 velocity; // Yerçekimi ve zıplama hızını tutar
+    private bool isGrounded;
+    private float currentSpeed;
 
     public override void OnNetworkSpawn()
     {
@@ -23,7 +38,7 @@ public class PlayerController : NetworkBehaviour
 
         controller = GetComponent<CharacterController>();
 
-        // EĞER BU KARAKTER BİZE AİT DEĞİLSE (Diğer Oyuncular)
+        // EĞER BU KARAKTER BİZE AİT DEĞİLSE
         if (!IsOwner)
         {
             if (playerCamera != null)
@@ -37,10 +52,7 @@ public class PlayerController : NetworkBehaviour
             return;
         }
 
-        // --- SADECE BİZİM KENDİ KARAKTERİMİZ İÇİN ÇALIŞIR ---
-
-        // 1. Sahnede duran Lobi Kamerasını ve AudioListener'ını TAMAMEN KAPAT
-        // (2 Audio Listener uyarısını çözen yer burasıdır)
+        // SADECE KENDİ KARAKTERİMİZ İÇİN
         Camera mainCam = Camera.main;
         if (mainCam != null && mainCam != playerCamera)
         {
@@ -50,7 +62,6 @@ public class PlayerController : NetworkBehaviour
             mainCam.gameObject.SetActive(false);
         }
 
-        // 2. Kendi Oyuncu Kameramızı ve Ses Dinleyicimizi AÇ
         if (playerCamera != null)
         {
             playerCamera.gameObject.SetActive(true);
@@ -60,14 +71,13 @@ public class PlayerController : NetworkBehaviour
             if (listener != null) listener.enabled = true;
         }
 
-        // 3. Katıl Butonunun Olduğu Lobi Canvas'ını Kapat
         GameObject lobbyCanvas = GameObject.Find("HUD_Canvas") ?? GameObject.Find("HUD_Canvas 1");
         if (lobbyCanvas != null)
         {
             lobbyCanvas.SetActive(false);
         }
 
-        // 4. Doğum Pozisyonunu Ayarla
+        // Doğum Pozisyonunu Ayarla
         if (PlayerSpawnManager.Instance != null)
         {
             if (controller != null) controller.enabled = false;
@@ -75,7 +85,6 @@ public class PlayerController : NetworkBehaviour
             if (controller != null) controller.enabled = true;
         }
 
-        // 5. Mouse'u Ortaya Kitle
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
@@ -84,7 +93,15 @@ public class PlayerController : NetworkBehaviour
     {
         if (!IsOwner) return;
 
-        // 1. Etrafa Bakma (Mouse)
+        // 1. Yere Basıyor Mu Kontrolü
+        isGrounded = controller.isGrounded;
+        if (isGrounded && velocity.y < 0)
+        {
+            // Yere tam oturması için küçük bir eksi değer veriyoruz
+            velocity.y = -2f;
+        }
+
+        // 2. Etrafa Bakma (Mouse)
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
         float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
 
@@ -98,7 +115,24 @@ public class PlayerController : NetworkBehaviour
             cameraTransform.localRotation = Quaternion.Euler(verticalRotation, 0f, 0f);
         }
 
-        // 2. Yürüme (WASD)
+        // 3. Eğilme (Crouch) Kontrolü - Left Control
+        HandleCrouch();
+
+        // 4. Hız Belirleme (Koşma / Yürüme / Eğilme)
+        if (Input.GetKey(KeyCode.LeftControl))
+        {
+            currentSpeed = crouchSpeed;
+        }
+        else if (Input.GetKey(KeyCode.LeftShift))
+        {
+            currentSpeed = runSpeed;
+        }
+        else
+        {
+            currentSpeed = walkSpeed;
+        }
+
+        // 5. Yürüme (WASD)
         float x = Input.GetAxis("Horizontal");
         float z = Input.GetAxis("Vertical");
 
@@ -106,7 +140,37 @@ public class PlayerController : NetworkBehaviour
 
         if (controller != null && controller.enabled)
         {
-            controller.Move(move * moveSpeed * Time.deltaTime);
+            controller.Move(move * currentSpeed * Time.deltaTime);
+
+            // 6. Zıplama (Space)
+            if (Input.GetButtonDown("Jump") && isGrounded)
+            {
+                velocity.y = Mathf.Sqrt(jumpHeight * -2f * gravity);
+            }
+
+            // 7. Yerçekimi Uygulama (V = g * t)
+            velocity.y += gravity * Time.deltaTime;
+            controller.Move(velocity * Time.deltaTime);
+        }
+    }
+
+    void HandleCrouch()
+    {
+        if (controller == null) return;
+
+        bool isCrouching = Input.GetKey(KeyCode.LeftControl);
+        float targetHeight = isCrouching ? crouchHeight : normalHeight;
+        float targetCamY = isCrouching ? cameraCrouchY : cameraNormalY;
+
+        // Karakter boyunu yumuşakça ayarla
+        controller.height = Mathf.Lerp(controller.height, targetHeight, Time.deltaTime * 10f);
+
+        // Kamera pozisyonunu yumuşakça indir/kaldır
+        if (cameraTransform != null)
+        {
+            Vector3 camPos = cameraTransform.localPosition;
+            camPos.y = Mathf.Lerp(camPos.y, targetCamY, Time.deltaTime * 10f);
+            cameraTransform.localPosition = camPos;
         }
     }
 }
