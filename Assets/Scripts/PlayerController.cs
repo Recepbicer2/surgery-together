@@ -85,8 +85,8 @@ public class PlayerController : NetworkBehaviour
             if (controller != null) controller.enabled = true;
         }
 
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+       // Cursor.lockState = CursorLockMode.Locked;
+       // Cursor.visible = false;
     }
 
     void Update()

@@ -22,14 +22,11 @@ public class RelayTestUI : MonoBehaviour
         {
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
-            }
-            else if (Input.GetMouseButtonDown(0) && Cursor.lockState != CursorLockMode.Locked)
-            {
-                // Ekrana tıklandığında imleci tekrar oyuna kilitler
-                Cursor.lockState = CursorLockMode.Locked;
-                Cursor.visible = false;
+                // Lobi aşamasındayken sadece ESC ile aç kapa yapsın. 
+                // Sol tık (GetMouseButtonDown) ile kilitleme kodunu SİLDİK ki butonlara tıklayabilelim!
+                bool isLocked = Cursor.lockState == CursorLockMode.Locked;
+                Cursor.lockState = isLocked ? CursorLockMode.None : CursorLockMode.Locked;
+                Cursor.visible = isLocked;
             }
         }
     }
@@ -146,9 +143,9 @@ public class RelayTestUI : MonoBehaviour
     {
         isConnected = true;
 
-        // Bağlantı kurulduğu an imleci ekrana kilitle ve gizle
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
+        // DİKKAT: Bağlantı kurulduğu an lobide olacağımız için İMLECİ SERBEST BIRAKIYORUZ!
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
 
         // Sahnedeki HUD / UI Canvas'ını kapat
         if (hudCanvas != null)

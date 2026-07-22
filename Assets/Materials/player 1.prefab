@@ -731,7 +731,7 @@ MonoBehaviour:
   runSpeed: 2
   crouchSpeed: 2
   mouseSensitivity: 2
-  jumpHeight: 1.2
+  jumpHeight: 0.8
   gravity: -19.62
   normalHeight: 2
   crouchHeight: 1

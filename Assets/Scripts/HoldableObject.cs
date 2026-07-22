@@ -20,7 +20,7 @@ public class HoldableObject : NetworkBehaviour, IInteractable
 
     private void Update()
     {
-        // Eğer bir oyuncu bu nesneyi tutuyorsa, nesneyi HoldPoint pozisyonuna yumuşakça taşı
+        // Eğer bir oyuncu bu nesneyi tutuyorsa, herkesin ekranında bu obje o oyuncunun elini takip edecek
         if (isHeld && currentHolder != null)
         {
             transform.position = currentHolder.position;
@@ -33,47 +33,100 @@ public class HoldableObject : NetworkBehaviour, IInteractable
         return isHeld ? "" : promptText;
     }
 
+    // 1. AŞAMA: Oyuncu Etkileşime Girer
     public void Interact()
     {
         if (isHeld) return;
 
-        PlayerInteraction player = FindFirstObjectByType<PlayerInteraction>();
-        if (player != null && player.holdPoint != null)
+        // FindFirstObjectByType SİLDİK! Sadece tuşa basan YEREL oyuncumuzun ID'sini alıyoruz.
+        if (NetworkManager.Singleton.LocalClient != null && NetworkManager.Singleton.LocalClient.PlayerObject != null)
         {
-            PickUp(player.holdPoint);
+            ulong myClientId = NetworkManager.Singleton.LocalClient.PlayerObject.NetworkObjectId;
+
+            // İşlemi lokalde yapma, sunucuya istek gönder!
+            RequestPickUpRpc(myClientId);
         }
     }
 
-    public void PickUp(Transform holdPoint)
+    // 2. AŞAMA: Sunucu İstek Alır
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void RequestPickUpRpc(ulong playerNetworkObjId)
     {
-        isHeld = true;
-        currentHolder = holdPoint;
+        if (isHeld) return; // İki kişi aynı anda E'ye basarsa ilk basan alır.
 
-        // Fiziği kapatıyoruz ki elimizdeyken titremesin ve karaktere çarpmasın
-        rb.isKinematic = true;
-        rb.useGravity = false;
-        rb.linearVelocity = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
+        // Sunucu onayladı, şimdi ağdaki herkesin ekranında objeyi o oyuncunun eline ver!
+        ExecutePickUpRpc(playerNetworkObjId);
     }
 
+    // 3. AŞAMA: Herkesin Ekranında Eşya Ele Geçer
+    [Rpc(SendTo.Everyone)]
+    private void ExecutePickUpRpc(ulong playerNetworkObjId)
+    {
+        // Ağa bağlı olan tüm oyuncular arasından o ID'ye sahip karakteri buluyoruz
+        if (NetworkManager.Singleton.SpawnManager.SpawnedObjects.TryGetValue(playerNetworkObjId, out NetworkObject playerObj))
+        {
+            PlayerInteraction player = playerObj.GetComponent<PlayerInteraction>();
+            if (player != null && player.holdPoint != null)
+            {
+                isHeld = true;
+                currentHolder = player.holdPoint;
+
+                // Fiziği herkesin bilgisayarında kapatıyoruz ki titreme yapmasın
+                rb.isKinematic = true;
+                rb.useGravity = false;
+                rb.linearVelocity = Vector3.zero;
+                rb.angularVelocity = Vector3.zero;
+            }
+        }
+    }
+
+    // === BIRAKMA (DROP) İŞLEMİ ===
     public void Drop()
+    {
+        if (!isHeld) return;
+        RequestDropRpc(); // Bırakma isteğini sunucuya yolla
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void RequestDropRpc()
+    {
+        ExecuteDropRpc();
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ExecuteDropRpc()
     {
         isHeld = false;
         currentHolder = null;
 
-        // Fiziği tekrar açıyoruz
+        // Fiziği herkesin ekranında tekrar açıyoruz
         rb.isKinematic = false;
         rb.useGravity = true;
     }
 
+    // === FIRLATMA (THROW) İŞLEMİ ===
     public void Throw(Vector3 throwDirection)
     {
-        Drop();
+        if (!isHeld) return;
+        RequestThrowRpc(throwDirection); // Fırlatma isteğini ve yönünü sunucuya yolla
+    }
 
-        // Karakterin kendi Collider'ına çarpıp uzaya fırlamaması için nesneyi hafifçe ileri kaydırıyoruz
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    private void RequestThrowRpc(Vector3 throwDirection)
+    {
+        ExecuteThrowRpc(throwDirection);
+    }
+
+    [Rpc(SendTo.Everyone)]
+    private void ExecuteThrowRpc(Vector3 throwDirection)
+    {
+        isHeld = false;
+        currentHolder = null;
+
+        rb.isKinematic = false;
+        rb.useGravity = true;
+
         transform.position += throwDirection * 0.5f;
-
-        // Anlık patlama kuvveti uygula
         rb.AddForce(throwDirection * throwForce, ForceMode.Impulse);
     }
 

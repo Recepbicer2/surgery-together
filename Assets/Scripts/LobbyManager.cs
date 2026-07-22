@@ -13,26 +13,17 @@ public class LobbyManager : NetworkBehaviour
     public TextMeshProUGUI[] playerNameTexts;
     public TextMeshProUGUI[] playerReadyTexts;
 
-    // Listeyi hemen burada başlatıyoruz ki boşta kalmasın
     public NetworkList<PlayerLobbyState> lobbyPlayers = new NetworkList<PlayerLobbyState>();
 
-    private void Awake()
-    {
-        if (readyButton != null)
-        {
-            readyButton.onClick.RemoveAllListeners();
-            readyButton.onClick.AddListener(OnReadyButtonClicked);
-            Debug.Log("Butona listener başarıyla eklendi.");
-        }
-        else
-        {
-            Debug.LogError("readyButton referansı boş!");
-        }
-    }
+    // NETCODE ZAMANLAMA BUG'INI AŞMAK İÇİN GÜVENLİK BAYRAĞI
+    private bool _uiGuncellenecek = false;
+
+    // DİKKAT: Awake() metodunu tamamen sildik çünkü butonu zaten Inspector'dan bağlamışsın! Çift tıklamayı engelledik.
 
     public override void OnNetworkSpawn()
     {
-        lobbyPlayers.OnListChanged += UpdateLobbyUI;
+        // Liste değiştiğinde UI'ı hemen yormuyoruz, sadece "güncelleme lazım" diye not alıyoruz.
+        lobbyPlayers.OnListChanged += (changeEvent) => { _uiGuncellenecek = true; };
 
         if (IsServer)
         {
@@ -45,61 +36,86 @@ public class LobbyManager : NetworkBehaviour
             lobbyPlayers.Add(new PlayerLobbyState { ClientId = NetworkManager.Singleton.LocalClientId, IsReady = false, PlayerName = "Host" });
         }
 
-        UpdateLobbyUI(default);
+        _uiGuncellenecek = true; // Oyuna girince UI ilk kez çizilsin
+    }
+
+    private void Update()
+    {
+        if (!IsSpawned) return;
+
+        // Sadece ve sadece listede bir değişiklik olmuşsa UI güncellenir.
+        if (_uiGuncellenecek)
+        {
+            UpdateLobbyUI();
+            _uiGuncellenecek = false; // İşlem bitince bayrağı indir.
+        }
     }
 
     public void OnReadyButtonClicked()
     {
-        Debug.Log("Butona tıklandı! Gönderilen ClientID: " + NetworkManager.Singleton.LocalClientId);
-        ToggleReadyServerRpc(NetworkManager.Singleton.LocalClientId);
+        Debug.Log("-> BUTONA TIKLANDI! Sunucuya hazır olma isteği gönderiliyor...");
+        ToggleReadyRpc(NetworkManager.Singleton.LocalClientId);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
-    void ToggleReadyServerRpc(ulong clientId)
+    void ToggleReadyRpc(ulong clientId)
     {
-        Debug.Log("ServerRpc çalıştı! Gelen ClientID: " + clientId);
+        Debug.Log("-> SUNUCU RPC ÇALIŞTI. İstek Yapan ClientID: " + clientId);
 
         for (int i = 0; i < lobbyPlayers.Count; i++)
         {
-            Debug.Log($"Liste taranıyor... Liste elemanı ID: {lobbyPlayers[i].ClientId}");
             if (lobbyPlayers[i].ClientId == clientId)
             {
                 var playerInfo = lobbyPlayers[i];
                 playerInfo.IsReady = !playerInfo.IsReady;
+
+                // Üzerine yazınca OnListChanged otomatik tetiklenir ve bayrağı kaldırır.
                 lobbyPlayers[i] = playerInfo;
-                Debug.Log("Oyuncu durumu değiştirildi. Yeni Durum: " + playerInfo.IsReady);
+
+                Debug.Log($"-> DURUM DEĞİŞTİ! {playerInfo.PlayerName} artık hazır mı?: {playerInfo.IsReady}");
                 break;
             }
         }
     }
 
-    void UpdateLobbyUI(NetworkListEvent<PlayerLobbyState> changeEvent)
+    void UpdateLobbyUI()
     {
+        Debug.Log("-> UI EKRANI GÜNCELLENİYOR...");
+
         for (int i = 0; i < 4; i++)
         {
-            playerNameTexts[i].text = "BOŞ SLOT";
-            playerReadyTexts[i].text = "";
-            playerReadyTexts[i].color = Color.gray;
+            if (i < playerNameTexts.Length && playerNameTexts[i] != null)
+                playerNameTexts[i].text = "BOŞ SLOT";
+
+            if (i < playerReadyTexts.Length && playerReadyTexts[i] != null)
+            {
+                playerReadyTexts[i].text = "";
+                playerReadyTexts[i].color = Color.gray;
+            }
         }
 
         for (int i = 0; i < lobbyPlayers.Count; i++)
         {
             if (i >= 4) break;
 
-            playerNameTexts[i].text = lobbyPlayers[i].PlayerName.ToString();
+            if (i < playerNameTexts.Length && playerNameTexts[i] != null)
+                playerNameTexts[i].text = lobbyPlayers[i].PlayerName.ToString();
 
-            if (lobbyPlayers[i].IsReady)
+            if (i < playerReadyTexts.Length && playerReadyTexts[i] != null)
             {
-                playerReadyTexts[i].text = "READY";
-                playerReadyTexts[i].color = Color.green;
-            }
-            else
-            {
-                playerReadyTexts[i].text = "NOT READY";
-                playerReadyTexts[i].color = Color.red;
+                if (lobbyPlayers[i].IsReady)
+                {
+                    playerReadyTexts[i].text = "READY";
+                    playerReadyTexts[i].color = Color.green;
+                }
+                else
+                {
+                    playerReadyTexts[i].text = "NOT READY";
+                    playerReadyTexts[i].color = Color.red;
+                }
             }
 
-            if (lobbyPlayers[i].ClientId == NetworkManager.Singleton.LocalClientId)
+            if (lobbyPlayers[i].ClientId == NetworkManager.Singleton.LocalClientId && readyButtonText != null)
             {
                 readyButtonText.text = lobbyPlayers[i].IsReady ? "CANCEL" : "READY";
             }
