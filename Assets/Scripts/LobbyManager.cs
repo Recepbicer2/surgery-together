@@ -3,6 +3,7 @@ using Unity.Netcode;
 using TMPro;
 using UnityEngine.UI;
 using Unity.Collections;
+using System.Collections;
 
 public class LobbyManager : NetworkBehaviour
 {
@@ -13,16 +14,17 @@ public class LobbyManager : NetworkBehaviour
     public TextMeshProUGUI[] playerNameTexts;
     public TextMeshProUGUI[] playerReadyTexts;
 
+    [Header("Geçiş ve Yükleme Ekranı")]
+    public TextMeshProUGUI countdownText;
+    public GameObject loadingScreenCanvas;
+
     public NetworkList<PlayerLobbyState> lobbyPlayers = new NetworkList<PlayerLobbyState>();
 
-    // NETCODE ZAMANLAMA BUG'INI AŞMAK İÇİN GÜVENLİK BAYRAĞI
     private bool _uiGuncellenecek = false;
-
-    // DİKKAT: Awake() metodunu tamamen sildik çünkü butonu zaten Inspector'dan bağlamışsın! Çift tıklamayı engelledik.
+    private bool _isGameStarted = false;
 
     public override void OnNetworkSpawn()
     {
-        // Liste değiştiğinde UI'ı hemen yormuyoruz, sadece "güncelleme lazım" diye not alıyoruz.
         lobbyPlayers.OnListChanged += (changeEvent) => { _uiGuncellenecek = true; };
 
         if (IsServer)
@@ -36,18 +38,18 @@ public class LobbyManager : NetworkBehaviour
             lobbyPlayers.Add(new PlayerLobbyState { ClientId = NetworkManager.Singleton.LocalClientId, IsReady = false, PlayerName = "Host" });
         }
 
-        _uiGuncellenecek = true; // Oyuna girince UI ilk kez çizilsin
+        _uiGuncellenecek = true;
     }
 
     private void Update()
     {
         if (!IsSpawned) return;
 
-        // Sadece ve sadece listede bir değişiklik olmuşsa UI güncellenir.
         if (_uiGuncellenecek)
         {
             UpdateLobbyUI();
-            _uiGuncellenecek = false; // İşlem bitince bayrağı indir.
+            CheckIfAllPlayersReady();
+            _uiGuncellenecek = false;
         }
     }
 
@@ -69,7 +71,6 @@ public class LobbyManager : NetworkBehaviour
                 var playerInfo = lobbyPlayers[i];
                 playerInfo.IsReady = !playerInfo.IsReady;
 
-                // Üzerine yazınca OnListChanged otomatik tetiklenir ve bayrağı kaldırır.
                 lobbyPlayers[i] = playerInfo;
 
                 Debug.Log($"-> DURUM DEĞİŞTİ! {playerInfo.PlayerName} artık hazır mı?: {playerInfo.IsReady}");
@@ -120,6 +121,100 @@ public class LobbyManager : NetworkBehaviour
                 readyButtonText.text = lobbyPlayers[i].IsReady ? "CANCEL" : "READY";
             }
         }
+    }
+
+    private void CheckIfAllPlayersReady()
+    {
+        if (!IsServer || _isGameStarted || lobbyPlayers.Count == 0) return;
+
+        bool allReady = true;
+        foreach (var player in lobbyPlayers)
+        {
+            if (!player.IsReady)
+            {
+                allReady = false;
+                break;
+            }
+        }
+
+        if (allReady)
+        {
+            Debug.Log("-> HERKES HAZIR! Geçiş başlatılıyor...");
+            _isGameStarted = true;
+            StartCoroutine(LobbyCountdownRoutine());
+        }
+    }
+
+    private IEnumerator LobbyCountdownRoutine()
+    {
+        // 1. Geri sayım başlamadan önce yükleme ekranını/paneli açıyoruz
+        ShowLoadingScreenClientRpc();
+
+        // 2. 5 saniyelik geri sayım döngüsü
+        for (int i = 5; i > 0; i--)
+        {
+            UpdateCountdownUIClientRpc(i.ToString());
+            yield return new WaitForSeconds(1f);
+        }
+
+        yield return new WaitForSeconds(1.5f);
+
+        // 3. Karakterleri oyun alanına ışınlıyoruz
+        foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
+        {
+            if (client.PlayerObject != null)
+            {
+                Vector3 newPos = PlayerSpawnManager.Instance.GetNextGameSpawnPosition();
+
+                // YERE VE DUVARA SIKIŞMAMAK İÇİN 2 METRE YUKARI PAY EKLİYORUZ
+                newPos += new Vector3(0, 2f, 0);
+
+                var charController = client.PlayerObject.GetComponent<CharacterController>();
+                if (charController != null) charController.enabled = false;
+
+                if (client.PlayerObject.TryGetComponent<Unity.Netcode.Components.NetworkTransform>(out var netTransform))
+                {
+                    netTransform.Teleport(newPos, client.PlayerObject.transform.rotation, client.PlayerObject.transform.localScale);
+                }
+                else
+                {
+                    client.PlayerObject.transform.position = newPos;
+                }
+
+                if (charController != null) charController.enabled = true;
+            }
+        }
+
+        yield return new WaitForSeconds(1f);
+
+        // 4. Işınlanma tamamlandıktan sonra yükleme ekranını kapatıyoruz
+        HideLoadingScreenClientRpc();
+    }
+
+    [ClientRpc]
+    private void UpdateCountdownUIClientRpc(string timeText)
+    {
+        if (countdownText != null)
+        {
+            countdownText.text = "Oyuna Aktarılıyor: " + timeText;
+        }
+    }
+
+    [ClientRpc]
+    private void ShowLoadingScreenClientRpc()
+    {
+        if (loadingScreenCanvas != null)
+            loadingScreenCanvas.SetActive(true);
+    }
+
+    [ClientRpc]
+    private void HideLoadingScreenClientRpc()
+    {
+        if (loadingScreenCanvas != null)
+            loadingScreenCanvas.SetActive(false);
+
+        if (countdownText != null)
+            countdownText.text = "";
     }
 }
 
