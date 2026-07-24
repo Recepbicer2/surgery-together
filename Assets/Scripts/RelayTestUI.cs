@@ -1,105 +1,20 @@
 using System.Text.RegularExpressions;
 using UnityEngine;
+using TMPro; // TextMeshPro kullanacağımız için eklendi
 
 public class RelayTestUI : MonoBehaviour
 {
-    [Header("UI Referansları")]
-    [Tooltip("Sahnede kapatılmasını istediğin Canvas objesini buraya sürükle")]
-    public GameObject hudCanvas;
+    [Header("Senin Lobi Tasarımın (UI Referansları)")]
+    public GameObject LobiBaglantiPaneli; // Host Ol, Kod Gir kısmının olduğu panel
+    public GameObject BeklemeOdasiPaneli; // Başarıyla bağlandıktan sonra açılacak panel
 
-    private string inputJoinCode = "";
-    private string currentJoinCode = "";
-    private string statusMessage = "";
-    private bool isConnected = false;
-    private bool isConnecting = false;
+    [Header("Input ve Yazı Alanları")]
+    public TMP_InputField inputJoinCode; // Unity'den Kod Girme kutunu buraya sürükleyeceksin
+    public TextMeshProUGUI statusMessageText; // "Bağlanıyor..." veya Hata yazısı için
+    public TextMeshProUGUI odaKoduGostergeText; // Host olan kişiye kodunu göstermek için
 
+    // UI kullanacağımız için isConnected vb. değişkenleri sildik.
     private static readonly Regex RelayCodeRegex = new Regex("^[6789BCDFGHJKLMNPQRTWbcdfghjklmnpqrtw]{6,12}$");
-
-    private void Update()
-    {
-        // Bağlantı kurulduktan sonra ESC'ye basarak imleci serbest bırakabilir veya tekrar kilitleyebilirsin
-        if (isConnected)
-        {
-            if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                // Lobi aşamasındayken sadece ESC ile aç kapa yapsın. 
-                // Sol tık (GetMouseButtonDown) ile kilitleme kodunu SİLDİK ki butonlara tıklayabilelim!
-                bool isLocked = Cursor.lockState == CursorLockMode.Locked;
-                Cursor.lockState = isLocked ? CursorLockMode.None : CursorLockMode.Locked;
-                Cursor.visible = isLocked;
-            }
-        }
-    }
-
-    private void OnGUI()
-    {
-        // Bağlantı sağlandıysa ve imleç kilitliyse UI çizme (Ekrandaki kutucuklar kaybolsun)
-        if (isConnected && Cursor.lockState == CursorLockMode.Locked)
-        {
-            return;
-        }
-
-        GUILayout.BeginArea(new Rect(20, 20, 380, 350));
-
-        if (!isConnected)
-        {
-            if (isConnecting)
-            {
-                GUILayout.Label("Bağlanıyor, lütfen bekleyin...");
-            }
-            else
-            {
-                // ODA OLUŞTURMA (HOST)
-                if (GUILayout.Button("Host Ol (Oda Kur)", GUILayout.Height(40)))
-                {
-                    StartHostProcess();
-                }
-
-                GUILayout.Space(20);
-
-                // ODAYA KATILMA (CLIENT)
-                GUILayout.Label("Oda Kodu Girin:");
-
-                // GUI Textfield ismini belirliyoruz ki odaklanma sorunları yaşanmasın
-                GUI.SetNextControlName("JoinCodeInput");
-                inputJoinCode = GUILayout.TextField(inputJoinCode, GUILayout.Height(30));
-
-                if (GUILayout.Button("Odaya Katıl (Client)", GUILayout.Height(40)))
-                {
-                    string cleanedCode = CleanJoinCode(inputJoinCode);
-
-                    if (RelayCodeRegex.IsMatch(cleanedCode))
-                    {
-                        statusMessage = "";
-                        StartJoinProcess(cleanedCode);
-                    }
-                    else
-                    {
-                        statusMessage = "HATA: Geçersiz kod formatı!";
-                    }
-                }
-
-                if (!string.IsNullOrEmpty(statusMessage))
-                {
-                    GUILayout.Space(10);
-                    GUI.color = Color.red;
-                    GUILayout.Label(statusMessage);
-                    GUI.color = Color.white;
-                }
-            }
-        }
-        else
-        {
-            GUILayout.Label("--- BAĞLANTI BAŞARILI ---");
-            if (!string.IsNullOrEmpty(currentJoinCode))
-            {
-                GUILayout.Label($"Arkadaşına Göndereceğin Kod: {currentJoinCode}", GUI.skin.box);
-            }
-            GUILayout.Label("Oyna tıklayarak imleci kilitleyebilir, ESC ile açabilirsin.");
-        }
-
-        GUILayout.EndArea();
-    }
 
     private string CleanJoinCode(string rawCode)
     {
@@ -107,50 +22,80 @@ public class RelayTestUI : MonoBehaviour
         return Regex.Replace(rawCode, @"\s+", "").ToUpper().Trim();
     }
 
-    private async void StartHostProcess()
+    // "HOST OL" butonuna (On Click) bu fonksiyonu bağlayacağız
+    public async void StartHostProcess()
     {
-        isConnecting = true;
-        currentJoinCode = await RelayManager.Instance.CreateRelay(4);
+        statusMessageText.text = "Oda Kuruluyor, Bekleyin...";
 
-        if (!string.IsNullOrEmpty(currentJoinCode))
+        string joinCode = await RelayManager.Instance.CreateRelay(4); // 4 kişilik oda
+
+        if (!string.IsNullOrEmpty(joinCode))
         {
+            // Bağlantı başarılı!
+            odaKoduGostergeText.text = "Oda Kodun: " + joinCode;
             OnSuccessfulConnection();
         }
         else
         {
-            statusMessage = "Oda oluşturulurken hata oluştu!";
+            statusMessageText.text = "HATA: Oda oluşturulamadı!";
+            statusMessageText.color = Color.red;
         }
-        isConnecting = false;
     }
 
-    private async void StartJoinProcess(string code)
+    // "ODAYA KATIL" butonuna (On Click) bu fonksiyonu bağlayacağız
+    public async void StartJoinProcess()
     {
-        isConnecting = true;
-        bool success = await RelayManager.Instance.JoinRelay(code);
+        // Kutudaki yazıyı al ve temizle
+        string cleanedCode = CleanJoinCode(inputJoinCode.text);
 
-        if (success)
+        if (RelayCodeRegex.IsMatch(cleanedCode))
         {
-            OnSuccessfulConnection();
+            statusMessageText.text = "Odaya Bağlanılıyor...";
+            statusMessageText.color = Color.white;
+
+            bool success = await RelayManager.Instance.JoinRelay(cleanedCode);
+
+            if (success)
+            {
+                odaKoduGostergeText.text = "Odaya Başarıyla Katıldın!";
+                OnSuccessfulConnection();
+            }
+            else
+            {
+                statusMessageText.text = "HATA: Odaya katılım başarısız! Kodu kontrol et.";
+                statusMessageText.color = Color.red;
+            }
         }
         else
         {
-            statusMessage = "Odaya katılım başarısız!";
+            statusMessageText.text = "HATA: Geçersiz kod formatı!";
+            statusMessageText.color = Color.red;
         }
-        isConnecting = false;
     }
 
+    // Bağlantı başarılı olunca panelleri değiştirir
     private void OnSuccessfulConnection()
     {
-        isConnected = true;
-
-        // DİKKAT: Bağlantı kurulduğu an lobide olacağımız için İMLECİ SERBEST BIRAKIYORUZ!
+        // Fareyi lobi işlemleri için görünür tutuyoruz
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        // Sahnedeki HUD / UI Canvas'ını kapat
-        if (hudCanvas != null)
+        // Bağlantı panelini (Kod girme vs.) kapat, Bekleme odasını aç!
+        if (LobiBaglantiPaneli != null && BeklemeOdasiPaneli != null)
         {
-            hudCanvas.SetActive(false);
+            LobiBaglantiPaneli.SetActive(false);
+            BeklemeOdasiPaneli.SetActive(true);
         }
+    }
+
+    // Sonradan ekleyeceğimiz "Oyunu Başlat" butonu için şimdiden hazır dursun
+    public void StartGameFromLobby()
+    {
+        // Şimdilik sadece menüyü kapatıp oyuna salacak
+        BeklemeOdasiPaneli.SetActive(false);
+
+        // Oyun başladığı için fareyi kilitliyoruz (FPS/Karakter kontrolü için)
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 }
