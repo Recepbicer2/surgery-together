@@ -10,7 +10,7 @@ public class PlayerInteraction : NetworkBehaviour
     public Transform holdPoint;
 
     [Header("UI Referansları")]
-    public TMP_Text interactUI;
+    public TMP_Text interactUI; // DİKKAT: Bunu artık kodla aramayacağız, Inspector'dan atayacaksın!
 
     private Camera playerCam;
     private HoldableObject currentHeldObject;
@@ -18,17 +18,14 @@ public class PlayerInteraction : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
+
+        // 1. ÖNCE HERKESİN YAZISINI KAPAT (Senin ekranında başkasının "E'ye bas" yazısı havada kalmasın)
+        if (interactUI != null) interactUI.gameObject.SetActive(false);
+
+        // 2. EĞER BU KARAKTER BANA AİT DEĞİLSE (KLONSA) KODUN GERİSİNİ ÇALIŞTIRMA
         if (!IsOwner) return;
 
         playerCam = GetComponentInChildren<Camera>();
-
-        if (interactUI == null)
-        {
-            GameObject uiObj = GameObject.Find("InteractText");
-            if (uiObj != null) interactUI = uiObj.GetComponent<TMP_Text>();
-        }
-
-        if (interactUI != null) interactUI.gameObject.SetActive(false);
     }
 
     void Update()
@@ -42,7 +39,7 @@ public class PlayerInteraction : NetworkBehaviour
             currentHeldObject = null;
         }
 
-        // Artık elimiz doluyken de Raycast atıyoruz ki kutuyu görebilelim!
+        // Raycast ile bakılan objeyi kontrol et
         CheckForInteractable();
     }
 
@@ -51,6 +48,7 @@ public class PlayerInteraction : NetworkBehaviour
         Ray ray = new Ray(playerCam.transform.position, playerCam.transform.forward);
         RaycastHit hit;
 
+        // Işın atıyoruz (Sadece interactLayer katmanındaki objelere çarpacak)
         if (Physics.Raycast(ray, out hit, interactDistance, interactLayer))
         {
             IInteractable interactable = hit.collider.GetComponent<IInteractable>();
@@ -82,7 +80,7 @@ public class PlayerInteraction : NetworkBehaviour
                     HoldableObject holdable = hit.collider.GetComponent<HoldableObject>();
                     if (holdable != null)
                     {
-                        ShowUI(interactable.GetInteractPrompt());
+                        ShowUI("ALMAK IÇIN E'YE BAS");
 
                         if (Input.GetKeyDown(KeyCode.E))
                         {
@@ -91,7 +89,7 @@ public class PlayerInteraction : NetworkBehaviour
                         }
                     }
                 }
-                return; // Işın bir etkileşim objesine çarptıysa işlemi bitir
+                return; // Işın bir etkileşim objesine çarptıysa işlemi bitir ve UI'ı kapatma
             }
         }
 
@@ -100,10 +98,17 @@ public class PlayerInteraction : NetworkBehaviour
 
     private void ShowUI(string text)
     {
+        Debug.Log("Raycast objeyi gördü! Gelen yazı: " + text);
+
         if (interactUI != null)
         {
             interactUI.text = text;
             if (!interactUI.gameObject.activeSelf) interactUI.gameObject.SetActive(true);
+            Debug.Log("UI objesi bulundu ve ekrana basıldı.");
+        }
+        else
+        {
+            Debug.LogError("KANKA DİKKAT: interactUI şuan BOŞ! Inspector'dan PlayerInteraction scriptine InteractText'i atamamışsın!");
         }
     }
 

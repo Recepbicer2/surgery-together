@@ -11,6 +11,7 @@ public class HandBoard : NetworkBehaviour
     public GameObject inputPaneli;
     public TMP_InputField yaziInput;
     public GameObject yaziInputPanel;
+    public GameObject carkMenusu; // YENİ: Çark menüsünü Inspector'dan buraya sürükle!
 
     [Header("Animasyon Pozisyonları")]
     public Transform mainCamera;
@@ -22,7 +23,6 @@ public class HandBoard : NetworkBehaviour
         NetworkVariableWritePermission.Owner
     );
 
-    // Enum'u public yaptık ki NetworkVariable rahatça tanısın
     public enum TahtaDurumu { Sakli, Normal, Yazma, Gosterme }
 
     // AĞ SENKRONİZASYONU: Tahtanın Hangi Pozisyonda Olduğunu (Durumunu) Senkronize Tutar
@@ -46,6 +46,15 @@ public class HandBoard : NetworkBehaviour
 
     public override void OnNetworkSpawn()
     {
+        base.OnNetworkSpawn();
+
+        // --- YENİ EKLENEN KISIM: Ağa bağlanan her karakterin panellerini zorla kapat ---
+        // Bu sayede başkasının UI'ı senin ekranında, senin UI'ın da başkasında takılı kalmaz.
+        if (yaziInputPanel != null) yaziInputPanel.SetActive(false);
+        if (inputPaneli != null) inputPaneli.SetActive(false);
+        if (carkMenusu != null) carkMenusu.SetActive(false);
+        // ---------------------------------------------------------------------------------
+
         // Ağ üzerindeki metin değiştiğinde tahta üzerindeki metni güncelle
         senkronizeYazi.OnValueChanged += (eskiYazi, yeniYazi) =>
         {
@@ -60,31 +69,21 @@ public class HandBoard : NetworkBehaviour
 
     void Start()
     {
-        // GÜVENLİK: Eğer Inspector'dan atanmamışsa bulmaya çalış (Ama Inspector'dan atamanı tavsiye ederim!)
+        // GÜVENLİK: Eğer Inspector'dan atanmamışsa bulmaya çalış
         if (yaziInput == null)
             yaziInput = FindFirstObjectByType<TMP_InputField>(FindObjectsInactive.Include);
 
         if (inputPaneli == null && yaziInput != null)
             inputPaneli = yaziInput.transform.parent.gameObject;
-
-        // DİKKAT: Ağı yormamak için onValueChanged olayını BURADAN KALDIRDIK.
-        // Artık sadece oyuncu Enter'a basıp işi bitirdiğinde ağa gidecek.
     }
 
     void Update()
     {
-        // 1. ÖNEMLİ DEĞİŞİKLİK: Pozisyon güncellemelerini IsOwner kontrolünden ÖNCEYE aldık.
-        // Böylece ağdaki herkes senin tahtanın senkronizeDurum'una bakıp tahtanı hareket ettirebilecek!
+        // Pozisyon güncellemelerini IsOwner kontrolünden ÖNCEYE aldık.
         TahtaHareketiGuncelle();
 
-        // 2. SADECE KARAKTERİN SAHİBİ TUŞLARA BASABİLİR (Tuş kontrolleri buradan sonra)
+        // SADECE KARAKTERİN SAHİBİ TUŞLARA BASABİLİR
         if (!IsOwner) return;
-
-        //if (Input.GetKeyDown(KeyCode.Alpha1))
-           // DurumDegistir(TahtaDurumu.Sakli);
-
-        //if (Input.GetKeyDown(KeyCode.Alpha2))
-            //DurumDegistir(TahtaDurumu.Normal);
 
         if (Input.GetKeyDown(KeyCode.T))
         {
@@ -101,6 +100,7 @@ public class HandBoard : NetworkBehaviour
             else if (senkronizeDurum.Value == TahtaDurumu.Normal)
                 DurumDegistir(TahtaDurumu.Gosterme);
         }
+
         if (yaziInputPanel != null)
         {
             bool yaziyorMu = (senkronizeDurum.Value == TahtaDurumu.Yazma);
@@ -108,19 +108,15 @@ public class HandBoard : NetworkBehaviour
             {
                 yaziInputPanel.SetActive(yaziyorMu);
 
-                // Eğer panel açıldıysa direkt klavyeden yazabilsin diye focus (odaklanma) atalım
                 if (yaziyorMu)
                 {
-                    // Eğer içinde InputField bileşeni varsa direkt odaklanır
-                    var inputField = yaziInputPanel.GetComponentInChildren<UnityEngine.UI.InputField>();
-                    if (inputField != null) inputField.ActivateInputField();
-
-                    // Eğer TextMeshPro kullanıyorsan üstteki yerine alttakini aktif et:
-                    // var tmpInput = yaziInputPanel.GetComponentInChildren<TMPro.TMP_InputField>();
-                    // if (tmpInput != null) tmpInput.ActivateInputField();
+                    // DÜZELTME: TextMeshPro kullandığın için standart InputField yerine TMP'yi aktif ettik.
+                    var tmpInput = yaziInputPanel.GetComponentInChildren<TMP_InputField>();
+                    if (tmpInput != null) tmpInput.ActivateInputField();
                 }
             }
         }
+
         if (senkronizeDurum.Value == TahtaDurumu.Yazma && (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)))
         {
             TahtayaYaz();
@@ -170,7 +166,6 @@ public class HandBoard : NetworkBehaviour
     {
         if (tahtaMetni != null && yaziInput != null)
         {
-            // Yazıyı sadece işlem bittiğinde ağdaki diğer oyunculara gönderiyoruz
             tahtaMetni.text = yaziInput.text;
             if (IsOwner)
             {
@@ -178,7 +173,6 @@ public class HandBoard : NetworkBehaviour
             }
         }
 
-        // İşlem bitince input'un içini temizlemek istersen (isteğe bağlı):
         if (yaziInput != null) yaziInput.text = "";
 
         DurumDegistir(TahtaDurumu.Normal);
@@ -189,7 +183,6 @@ public class HandBoard : NetworkBehaviour
         Vector3 hedefPos = normalPos;
         Vector3 hedefRot = normalRot;
 
-        // Tahtanın durumunu artık kendi yerel değişkenimizden değil, AĞDAKİ SENKRONİZE DEĞİŞKENDEN okuyoruz
         switch (senkronizeDurum.Value)
         {
             case TahtaDurumu.Sakli:
@@ -213,7 +206,7 @@ public class HandBoard : NetworkBehaviour
         transform.localPosition = Vector3.Lerp(transform.localPosition, hedefPos, Time.deltaTime * yumusamaHizi);
         transform.localRotation = Quaternion.Slerp(transform.localRotation, Quaternion.Euler(hedefRot), Time.deltaTime * yumusamaHizi);
     }
-    // Çark menüden doğrudan çağrılacak public fonksiyonlar
+
     public void RadialMenu_TahtaAl()
     {
         if (!IsOwner) return;
