@@ -5,6 +5,7 @@ public class RadialMenuController : NetworkBehaviour
 {
     [Header("UI Ayarları")]
     public GameObject radialMenuUI;
+
     [Header("Referanslar")]
     // HandBoard scriptine ulaşmak için bir referans ekliyoruz
     private HandBoard myHandBoard;
@@ -19,10 +20,10 @@ public class RadialMenuController : NetworkBehaviour
             return;
         }
 
-        // Önce Inspector'dan atanmış mı diye bakıyoruz, atanmadıysa alt objeler de dahil arıyoruz
+        // 'true' parametresi sayesinde HandBoard inaktif (kapalı) olsa bile bulur
         if (myHandBoard == null)
         {
-            myHandBoard = GetComponentInChildren<HandBoard>();
+            myHandBoard = GetComponentInChildren<HandBoard>(true);
         }
 
         if (myHandBoard == null)
@@ -30,31 +31,56 @@ public class RadialMenuController : NetworkBehaviour
             Debug.LogError("HATA: Karakterde veya çocuk objelerinde HandBoard bulunamadı!");
         }
 
+        // RadialMenu kapalı (inaktif) olsa bile sahnede bulmamızı sağlayan kod
         if (radialMenuUI == null)
         {
-            radialMenuUI = GameObject.Find("RadialMenu_Background");
+            Transform[] tumObjeler = Resources.FindObjectsOfTypeAll<Transform>();
+            foreach (Transform t in tumObjeler)
+            {
+                // Sadece adı eşleşen ve sahnede var olan objeyi alıyoruz (Prefab'ları ayıklamak için scene.isLoaded kullanıyoruz)
+                if (t.name == "RadialMenu_Background" && t.gameObject.scene.isLoaded)
+                {
+                    radialMenuUI = t.gameObject;
+                    break;
+                }
+            }
         }
 
         if (radialMenuUI != null)
         {
             radialMenuUI.SetActive(false);
+            Debug.Log("Radial menü başarıyla bulundu ve bağlandı!");
+        }
+        else
+        {
+            Debug.LogError("KRİTİK HATA: Sahnede 'RadialMenu_Background' adında bir obje bulunamadı. Adını kontrol et!");
         }
     }
+
     void Update()
     {
-        if (!IsOwner || radialMenuUI == null) return;
+        if (!IsOwner) return; // Karakter benim değilse okuma
 
-        // TAB tuşuna BASILI tutulduğunda menüyü aç
+        // Eğer UI obje oyun içinde bir şekilde silinirse bizi uyaracak
+        if (radialMenuUI == null)
+        {
+            Debug.LogWarning("DİKKAT: Radial menü başta bulundu ama sonradan kayboldu!");
+            return;
+        }
+
+        // TAB tuşuna BASILI tutulduğunda
         if (Input.GetKeyDown(KeyCode.Tab))
         {
+            Debug.Log("-> TAB TUŞUNA BASILDI! Menü açılıyor...");
             radialMenuUI.SetActive(true);
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
 
-        // TAB tuşundan elini ÇEKTİĞİNDE menüyü kapat
+        // TAB tuşundan elini ÇEKTİĞİNDE
         if (Input.GetKeyUp(KeyCode.Tab))
         {
+            Debug.Log("-> TAB TUŞU BIRAKILDI! Menü kapanıyor...");
             radialMenuUI.SetActive(false);
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
@@ -74,8 +100,8 @@ public class RadialMenuController : NetworkBehaviour
         }
         else
         {
-            // Ne olur ne olmaz son bir kez daha aramayı dene
-            myHandBoard = GetComponentInChildren<HandBoard>();
+            // Ne olur ne olmaz son bir kez daha 'true' ile aramayı dene
+            myHandBoard = GetComponentInChildren<HandBoard>(true);
             if (myHandBoard != null)
             {
                 myHandBoard.DurumDegistir(HandBoard.TahtaDurumu.Normal);

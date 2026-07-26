@@ -159,38 +159,45 @@ public class LobbyManager : NetworkBehaviour
 
         yield return new WaitForSeconds(1.5f);
 
-        // 3. Karakterleri oyun alanına ışınlıyoruz
+        // 3. Karakterleri oyun alanına ışınlıyoruz (TRY-CATCH EKLENDİ)
         foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
         {
-            if (client.PlayerObject != null)
+            try
             {
-                Vector3 newPos = PlayerSpawnManager.Instance.GetNextGameSpawnPosition();
-
-                // YERE VE DUVARA SIKIŞMAMAK İÇİN 2 METRE YUKARI PAY EKLİYORUZ
-                newPos += new Vector3(0, 2f, 0);
-
-                var charController = client.PlayerObject.GetComponent<CharacterController>();
-                if (charController != null) charController.enabled = false;
-
-                if (client.PlayerObject.TryGetComponent<Unity.Netcode.Components.NetworkTransform>(out var netTransform))
+                if (client.PlayerObject != null)
                 {
-                    netTransform.Teleport(newPos, client.PlayerObject.transform.rotation, client.PlayerObject.transform.localScale);
-                }
-                else
-                {
-                    client.PlayerObject.transform.position = newPos;
-                }
+                    Vector3 newPos = PlayerSpawnManager.Instance.GetNextGameSpawnPosition();
 
-                if (charController != null) charController.enabled = true;
+                    // YERE VE DUVARA SIKIŞMAMAK İÇİN 2 METRE YUKARI PAY EKLİYORUZ
+                    newPos += new Vector3(0, 2f, 0);
+
+                    var charController = client.PlayerObject.GetComponent<CharacterController>();
+                    if (charController != null) charController.enabled = false;
+
+                    if (client.PlayerObject.TryGetComponent<Unity.Netcode.Components.NetworkTransform>(out var netTransform))
+                    {
+                        netTransform.Teleport(newPos, client.PlayerObject.transform.rotation, client.PlayerObject.transform.localScale);
+                    }
+                    else
+                    {
+                        client.PlayerObject.transform.position = newPos;
+                    }
+
+                    if (charController != null) charController.enabled = true;
+                }
+            }
+            catch (System.Exception e)
+            {
+                // Eğer arkadaşın bağlanırken bir hata olursa oyun çökmeyecek, hatayı konsola yazdıracak!
+                Debug.LogError($"İstemci ışınlanırken hata oluştu (ClientID {client.ClientId}): {e.Message}");
             }
         }
 
         yield return new WaitForSeconds(1f);
 
-        // 4. Işınlanma tamamlandıktan sonra yükleme ekranını kapatıyoruz
+        // 4. Hata olsa bile yükleme ekranı ARTIK KAPANACAK!
         HideLoadingScreenClientRpc();
     }
-
     [ClientRpc]
     private void UpdateCountdownUIClientRpc(string timeText)
     {
