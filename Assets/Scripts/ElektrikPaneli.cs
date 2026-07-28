@@ -1,4 +1,5 @@
 using UnityEngine;
+using Unity.Netcode;
 
 public class ElektrikPaneli : MonoBehaviour
 {
@@ -14,27 +15,46 @@ public class ElektrikPaneli : MonoBehaviour
     [Tooltip("Animator penceresindeki Animation State'in tam adı (Örn: 'Salter_Animasyonu')")]
     public string animasyonAdi = "Salter_Animasyonu";
 
+    [Header("Etkileşim Ayarları")]
+    [Tooltip("Işıkları açıp kapatmak için dibine kadar girilmesi gereken mesafe")]
+    public float etkilesimMesafesi = 0.2f; // Mesafeyi 1.2 metreye düşürdük
+
     private bool elektrikVarMi = false;
 
     void Start()
     {
-        // Başlangıçta ışıklar loş ve şalter kapalı/başta duruyor
         IsiklariAyarla(kapaliSiddet);
 
         if (salterAnimator != null)
         {
+            salterAnimator.SetFloat("Hiz", 1f);
             salterAnimator.Play(animasyonAdi, 0, 0f);
-            salterAnimator.speed = 0f; // Başlangıçta animasyon durdurulmuş olsun
+            salterAnimator.speed = 0f;
         }
     }
 
     void Update()
     {
-        // E tuşuna basıldığında tetiklenir
         if (Input.GetKeyDown(KeyCode.E))
         {
-            elektrikVarMi = !elektrikVarMi; // Durumu değiştir
-            SistemiTetikle();
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsConnectedClient || NetworkManager.Singleton.LocalClient.PlayerObject == null) return;
+
+            Vector3 playerPos = NetworkManager.Singleton.LocalClient.PlayerObject.transform.position;
+
+            // Eğer Animator atanmışsa onun pozisyonunu, yoksa scriptin olduğu pozisyonu baz al
+            Vector3 salterPos = salterAnimator != null ? salterAnimator.transform.position : transform.position;
+
+            // Yüksekliği (Y eksenini) yok sayarak sadece yatay mesafe ölçümü yapalım (daha hassas etkileşim için)
+            playerPos.y = 0;
+            salterPos.y = 0;
+
+            float mesafe = Vector3.Distance(salterPos, playerPos);
+
+            if (mesafe <= etkilesimMesafesi)
+            {
+                elektrikVarMi = !elektrikVarMi;
+                SistemiTetikle();
+            }
         }
     }
 
@@ -42,17 +62,19 @@ public class ElektrikPaneli : MonoBehaviour
     {
         if (salterAnimator == null) return;
 
+        salterAnimator.speed = 1f;
+
         if (elektrikVarMi)
         {
-            // Elektrik geldi -> Işıkları aç, animasyonu normal yönde (ileri) oynat
             IsiklariAyarla(acikSiddet);
-            salterAnimator.speed = 1f;
+            salterAnimator.SetFloat("Hiz", 1f);
+            salterAnimator.Play(animasyonAdi, 0, 0f);
         }
         else
         {
-            // Elektrik gitti -> Işıkları kıs, animasyonu tersten oynat
             IsiklariAyarla(kapaliSiddet);
-            salterAnimator.speed = -1f;
+            salterAnimator.SetFloat("Hiz", -1f);
+            salterAnimator.Play(animasyonAdi, 0, 1f);
         }
     }
 
@@ -65,5 +87,13 @@ public class ElektrikPaneli : MonoBehaviour
                 isik.intensity = hedefSiddet;
             }
         }
+    }
+
+    // Editörde etkileşim alanını kırmızı bir küre olarak görmek için
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.red;
+        Vector3 merkez = salterAnimator != null ? salterAnimator.transform.position : transform.position;
+        Gizmos.DrawWireSphere(merkez, etkilesimMesafesi);
     }
 }

@@ -21,7 +21,7 @@ public class LeverController : NetworkBehaviour
             Vector3 salterPos = transform.position;
             float mesafe = Vector3.Distance(salterPos, playerPos);
 
-            if (mesafe <= 3f)
+            if (mesafe <= 0.7f)
             {
                 Debug.Log("✅ Şaltere basıldı! İşlemler başlıyor...");
                 ToggleLeverRpc();
