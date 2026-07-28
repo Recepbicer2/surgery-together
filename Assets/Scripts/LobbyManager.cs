@@ -1,16 +1,46 @@
 using UnityEngine;
 using Unity.Netcode;
-using TMPro;
 using UnityEngine.UI;
+using TMPro;
+using System.Collections.Generic;
 using Unity.Collections;
 using System.Collections;
 
+public struct PlayerLobbyState : INetworkSerializable, System.IEquatable<PlayerLobbyState>
+{
+    public ulong ClientId;
+    public bool IsReady;
+    public FixedString32Bytes PlayerName;
+    public FixedString32Bytes SelectedRole;
+
+    public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
+    {
+        serializer.SerializeValue(ref ClientId);
+        serializer.SerializeValue(ref IsReady);
+        serializer.SerializeValue(ref PlayerName);
+        serializer.SerializeValue(ref SelectedRole);
+    }
+
+    public bool Equals(PlayerLobbyState other)
+    {
+        return ClientId == other.ClientId && IsReady == other.IsReady && PlayerName.Equals(other.PlayerName) && SelectedRole.Equals(other.SelectedRole);
+    }
+}
+
 public class LobbyManager : NetworkBehaviour
 {
-    [Header("UI Referansları")]
-    public Button readyButton;
-    public TextMeshProUGUI readyButtonText;
+    public static LobbyManager Instance;
 
+    [Header("Paneller & Arayüz")]
+    public GameObject lobiBaglantiPanel;
+    public GameObject beklemeOdasiPanel;
+    public GameObject readyCanvas; // Ready butonu ve slotların olduğu canvas
+    public TextMeshProUGUI odaKoduText;
+
+    [Header("Seçilen Rol Göstergesi (Butonların Üstü İçin)")]
+    public TextMeshProUGUI selectedRoleDisplayText;
+
+    [Header("Sol Alt Slotlar (Sadece İsim ve Ready)")]
     public TextMeshProUGUI[] playerNameTexts;
     public TextMeshProUGUI[] playerReadyTexts;
 
@@ -18,10 +48,18 @@ public class LobbyManager : NetworkBehaviour
     public TextMeshProUGUI countdownText;
     public GameObject loadingScreenCanvas;
 
-    public NetworkList<PlayerLobbyState> lobbyPlayers = new NetworkList<PlayerLobbyState>();
+    public NetworkList<PlayerLobbyState> lobbyPlayers;
 
     private bool _uiGuncellenecek = false;
     private bool _isGameStarted = false;
+
+    private void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+
+        lobbyPlayers = new NetworkList<PlayerLobbyState>();
+    }
 
     public override void OnNetworkSpawn()
     {
@@ -32,18 +70,54 @@ public class LobbyManager : NetworkBehaviour
             NetworkManager.Singleton.OnClientConnectedCallback += (id) =>
             {
                 if (id == NetworkManager.Singleton.LocalClientId) return;
-                lobbyPlayers.Add(new PlayerLobbyState { ClientId = id, IsReady = false, PlayerName = "Player " + id });
+                lobbyPlayers.Add(new PlayerLobbyState
+                {
+                    ClientId = id,
+                    IsReady = false,
+                    PlayerName = new FixedString32Bytes("Player " + id),
+                    SelectedRole = new FixedString32Bytes("Seçilmedi")
+                });
             };
 
-            lobbyPlayers.Add(new PlayerLobbyState { ClientId = NetworkManager.Singleton.LocalClientId, IsReady = false, PlayerName = "Host" });
+            lobbyPlayers.Add(new PlayerLobbyState
+            {
+                ClientId = NetworkManager.Singleton.LocalClientId,
+                IsReady = false,
+                PlayerName = new FixedString32Bytes("Host"),
+                SelectedRole = new FixedString32Bytes("Seçilmedi")
+            });
         }
 
+        // KESİN ÇÖZÜM 1: Lobiye geçerken her şeyi başa saran sinsi kodlar BURADAN SİLİNDİ.
+        // Artık odayı kurduğunda sistem canvaslarını kapatmayacak.
+
         _uiGuncellenecek = true;
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        lobbyPlayers.OnListChanged -= (changeEvent) => { _uiGuncellenecek = true; };
     }
 
     private void Update()
     {
         if (!IsSpawned) return;
+
+        if (!_isGameStarted)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+
+            // KESİN ÇÖZÜM 2: OTOMATİK SENKRONİZASYON (Auto-Sync) BEKÇİSİ
+            // Eğer Bekleme Odası açıksa ama Ready Canvas kapalıysa, HİÇ SORMADAN ZORLA AÇ!
+            if (beklemeOdasiPanel != null && readyCanvas != null)
+            {
+                if (beklemeOdasiPanel.activeSelf && !readyCanvas.activeSelf)
+                {
+                    readyCanvas.SetActive(true);
+                }
+            }
+        }
 
         if (_uiGuncellenecek)
         {
@@ -53,27 +127,68 @@ public class LobbyManager : NetworkBehaviour
         }
     }
 
+    private void SetLobbyPanelsActive(bool isActive)
+    {
+        if (beklemeOdasiPanel != null) beklemeOdasiPanel.SetActive(isActive);
+        if (readyCanvas != null) readyCanvas.SetActive(isActive);
+    }
+
+    public void OpenLobbyAndShowCode(string joinCode)
+    {
+        if (lobiBaglantiPanel != null) lobiBaglantiPanel.SetActive(false);
+        SetLobbyPanelsActive(true);
+
+        if (odaKoduText != null)
+        {
+            odaKoduText.text = "Oda Kodun: " + joinCode;
+        }
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    public void SelectRoleDoktor() => RequestChangeRoleServerRpc("Doktor");
+    public void SelectRoleStorage() => RequestChangeRoleServerRpc("Storage");
+    public void SelectRoleRepair() => RequestChangeRoleServerRpc("Repair");
+
+    public void SelectRoleRandom()
+    {
+        string[] roles = { "Doktor", "Storage", "Repair" };
+        string chosenRole = roles[Random.Range(0, roles.Length)];
+        RequestChangeRoleServerRpc(chosenRole);
+    }
+
+    [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
+    void RequestChangeRoleServerRpc(string newRole, RpcParams rpcParams = default)
+    {
+        ulong senderId = rpcParams.Receive.SenderClientId;
+        for (int i = 0; i < lobbyPlayers.Count; i++)
+        {
+            if (lobbyPlayers[i].ClientId == senderId)
+            {
+                var player = lobbyPlayers[i];
+                player.SelectedRole = new FixedString32Bytes(newRole);
+                lobbyPlayers[i] = player;
+                break;
+            }
+        }
+    }
+
     public void OnReadyButtonClicked()
     {
-        Debug.Log("-> BUTONA TIKLANDI! Sunucuya hazır olma isteği gönderiliyor...");
         ToggleReadyRpc(NetworkManager.Singleton.LocalClientId);
     }
 
     [Rpc(SendTo.Server, InvokePermission = RpcInvokePermission.Everyone)]
     void ToggleReadyRpc(ulong clientId)
     {
-        Debug.Log("-> SUNUCU RPC ÇALIŞTI. İstek Yapan ClientID: " + clientId);
-
         for (int i = 0; i < lobbyPlayers.Count; i++)
         {
             if (lobbyPlayers[i].ClientId == clientId)
             {
                 var playerInfo = lobbyPlayers[i];
                 playerInfo.IsReady = !playerInfo.IsReady;
-
                 lobbyPlayers[i] = playerInfo;
-
-                Debug.Log($"-> DURUM DEĞİŞTİ! {playerInfo.PlayerName} artık hazır mı?: {playerInfo.IsReady}");
                 break;
             }
         }
@@ -81,8 +196,6 @@ public class LobbyManager : NetworkBehaviour
 
     void UpdateLobbyUI()
     {
-        Debug.Log("-> UI EKRANI GÜNCELLENİYOR...");
-
         for (int i = 0; i < 4; i++)
         {
             if (i < playerNameTexts.Length && playerNameTexts[i] != null)
@@ -100,7 +213,9 @@ public class LobbyManager : NetworkBehaviour
             if (i >= 4) break;
 
             if (i < playerNameTexts.Length && playerNameTexts[i] != null)
+            {
                 playerNameTexts[i].text = lobbyPlayers[i].PlayerName.ToString();
+            }
 
             if (i < playerReadyTexts.Length && playerReadyTexts[i] != null)
             {
@@ -116,9 +231,12 @@ public class LobbyManager : NetworkBehaviour
                 }
             }
 
-            if (lobbyPlayers[i].ClientId == NetworkManager.Singleton.LocalClientId && readyButtonText != null)
+            if (lobbyPlayers[i].ClientId == NetworkManager.Singleton.LocalClientId)
             {
-                readyButtonText.text = lobbyPlayers[i].IsReady ? "CANCEL" : "READY";
+                if (selectedRoleDisplayText != null)
+                {
+                    selectedRoleDisplayText.text = "Seçtiğin Rol: " + lobbyPlayers[i].SelectedRole.ToString();
+                }
             }
         }
     }
@@ -139,7 +257,6 @@ public class LobbyManager : NetworkBehaviour
 
         if (allReady)
         {
-            Debug.Log("-> HERKES HAZIR! Geçiş başlatılıyor...");
             _isGameStarted = true;
             StartCoroutine(LobbyCountdownRoutine());
         }
@@ -147,10 +264,10 @@ public class LobbyManager : NetworkBehaviour
 
     private IEnumerator LobbyCountdownRoutine()
     {
-        // 1. Geri sayım başlamadan önce yükleme ekranını/paneli açıyoruz
+        SetLobbyPanelsActive(false);
+
         ShowLoadingScreenClientRpc();
 
-        // 2. 5 saniyelik geri sayım döngüsü
         for (int i = 5; i > 0; i--)
         {
             UpdateCountdownUIClientRpc(i.ToString());
@@ -159,7 +276,6 @@ public class LobbyManager : NetworkBehaviour
 
         yield return new WaitForSeconds(1.5f);
 
-        // 3. Karakterleri oyun alanına ışınlıyoruz (TRY-CATCH EKLENDİ)
         foreach (var client in NetworkManager.Singleton.ConnectedClientsList)
         {
             try
@@ -167,8 +283,6 @@ public class LobbyManager : NetworkBehaviour
                 if (client.PlayerObject != null)
                 {
                     Vector3 newPos = PlayerSpawnManager.Instance.GetNextGameSpawnPosition();
-
-                    // YERE VE DUVARA SIKIŞMAMAK İÇİN 2 METRE YUKARI PAY EKLİYORUZ
                     newPos += new Vector3(0, 2f, 0);
 
                     var charController = client.PlayerObject.GetComponent<CharacterController>();
@@ -188,23 +302,22 @@ public class LobbyManager : NetworkBehaviour
             }
             catch (System.Exception e)
             {
-                // Eğer arkadaşın bağlanırken bir hata olursa oyun çökmeyecek, hatayı konsola yazdıracak!
-                Debug.LogError($"İstemci ışınlanırken hata oluştu (ClientID {client.ClientId}): {e.Message}");
+                Debug.LogError($"Işınlanma hatası: {e.Message}");
             }
         }
 
-        yield return new WaitForSeconds(1f);
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
 
-        // 4. Hata olsa bile yükleme ekranı ARTIK KAPANACAK!
+        yield return new WaitForSeconds(1f);
         HideLoadingScreenClientRpc();
     }
+
     [ClientRpc]
     private void UpdateCountdownUIClientRpc(string timeText)
     {
         if (countdownText != null)
-        {
             countdownText.text = "Oyuna Aktarılıyor: " + timeText;
-        }
     }
 
     [ClientRpc]
@@ -222,24 +335,5 @@ public class LobbyManager : NetworkBehaviour
 
         if (countdownText != null)
             countdownText.text = "";
-    }
-}
-
-public struct PlayerLobbyState : INetworkSerializable, System.IEquatable<PlayerLobbyState>
-{
-    public ulong ClientId;
-    public bool IsReady;
-    public FixedString32Bytes PlayerName;
-
-    public void NetworkSerialize<T>(BufferSerializer<T> serializer) where T : IReaderWriter
-    {
-        serializer.SerializeValue(ref ClientId);
-        serializer.SerializeValue(ref IsReady);
-        serializer.SerializeValue(ref PlayerName);
-    }
-
-    public bool Equals(PlayerLobbyState other)
-    {
-        return ClientId == other.ClientId && IsReady == other.IsReady && PlayerName == other.PlayerName;
     }
 }
